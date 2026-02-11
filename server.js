@@ -7,7 +7,6 @@ const adminRoutes = require('./routes/adminRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const teacherRoutes = require('./routes/teacherRoutes');
 const authRoutes = require('./routes/authRoutes');
-const teacherRoutes = require('./routes/teacherRoutes');
 
 dotenv.config(); // Load environment variables
 
