@@ -7,7 +7,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const teacherRoutes = require('./routes/teacherRoutes');
 const authRoutes = require('./routes/authRoutes');
-// const teacherRoutes = require('./routes/teacherRoutes');
+const teacherRoutes = require('./routes/teacherRoutes');
 
 dotenv.config(); // Load environment variables
 
@@ -15,7 +15,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173',  
+  origin: ['https://kenmaticsschool.netlify.app', 'http://localhost:5173'],  
   methods: ['GET', 'POST', 'PUT', 'DELETE'],  
   allowedHeaders: ['Content-Type', 'Authorization'],  
   credentials: true,  
@@ -43,6 +43,9 @@ mongoose.connect(process.env.MONGODB_URI, {
 });
 
 // Server
-app.listen(5000, () => {
-  console.log('Server running on port 5000');
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
+

@@ -68,6 +68,45 @@ router.post('/create-teacher', async (req, res) => {
   }
 });
 
+// Get all students
+router.get('/students', async (req, res) => {
+  try {
+    const students = await Student.find();
+    res.json(students);
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    res.status(500).json({ message: 'Server Error', error });
+  }
+});
+
+// Create student
+router.post('/students', async (req, res) => {
+  try {
+    const student = new Student(req.body);
+    await student.save();
+    res.status(201).json(student);
+  } catch (error) {
+    console.error('Error creating student:', error);
+    res.status(500).json({ message: 'Server Error', error });
+  }
+});
+
+// Update student
+router.post('/students/:id', async (req, res) => {
+  try {
+    const updated = await Student.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating student:', error);
+    res.status(500).json({ message: 'Server Error', error });
+  }
+});
+
+
 router.post('/create-first-admin', async (req, res) => {
   const { name, email, password } = req.body;
 
