@@ -94,27 +94,34 @@ router.get('/teachers', verifyToken, requireAdmin, async (req, res) => {
 
 // Create teacher
 router.post('/teachers', verifyToken, requireAdmin, async (req, res) => {
-  const { name, email, phone } = req.body;
+  try {
+    const { name, email, phone, subject = '' } = req.body; // subject default to empty
 
-  const exists = await Teacher.findOne({ email });
-  if (exists) return res.status(400).json({ message: 'Teacher already exists' });
+    const exists = await Teacher.findOne({ email });
+    if (exists) return res.status(400).json({ message: 'Teacher already exists' });
 
-  const tempPassword = crypto.randomBytes(5).toString('hex');
-  const hashed = await bcrypt.hash(tempPassword, 10);
+    // Generate random password (plain-text to return to frontend)
+    const tempPassword = crypto.randomBytes(5).toString('hex'); // 10-char random
+    const hashed = await bcrypt.hash(tempPassword, 10);
 
-  const teacher = await Teacher.create({
-    name,
-    email,
-    phone,
-    password: hashed,
-    role: 'teacher'
-  });
+    const teacher = await Teacher.create({
+      name,
+      email,
+      phone,
+      subject,
+      password: hashed,
+      role: 'teacher'
+    });
 
-  res.status(201).json({
-    message: 'Teacher created',
-    teacher: { id: teacher._id, name, email },
-    tempPassword
-  });
+    res.status(201).json({
+      message: 'Teacher created',
+      teacher: { id: teacher._id, name, email, subject, phone },
+      tempPassword // send to frontend to display
+    });
+  } catch (err) {
+    console.error('Teacher creation error:', err);
+    res.status(500).json({ message: 'Failed to create teacher', error: err.message });
+  }
 });
 
 /* ===============================
