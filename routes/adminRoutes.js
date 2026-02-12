@@ -49,15 +49,31 @@ router.get(
       const tomorrow = new Date(today);
       tomorrow.setDate(today.getDate() + 1);
 
-      const attendanceToday = await Attendance.countDocuments({
-        date: { $gte: today, $lt: tomorrow },
+      // Attendance Today
+      const attendanceTodayRecords = await Attendance.find({
+        date: {
+          $gte: today,
+          $lt: tomorrow,
+        },
       });
 
+      const attendanceToday = attendanceTodayRecords.length;
+
+      const presentToday = attendanceTodayRecords.filter(
+        (a) => a.status === 'present'
+      ).length;
+
+      const absentToday = attendanceTodayRecords.filter(
+        (a) => a.status === 'absent'
+      ).length;
+
       res.json({
-        totalTeachers,
         totalStudents,
+        totalTeachers,
         totalClasses,
         attendanceToday,
+        presentToday,
+        absentToday,
       });
     } catch (err) {
       console.error(err);
