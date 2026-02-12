@@ -1,157 +1,479 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto'); 
+const crypto = require('crypto');
 const verifyToken = require('../middleware/auth');
+
 const Admin = require('../models/Admin');
 const Teacher = require('../models/Teacher');
 const Student = require('../models/Student');
 const Class = require('../models/Class');
+const Subject = require('../models/Subject');
 const Attendance = require('../models/Attendance');
+const Result = require('../models/Result');
+const roleAuth = require('../middleware/roleAuth');
+const Timetable = require('../models/Timetable');
+
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
 
 const router = express.Router();
 
-// Helper: generate random password
-function generateRandomPassword(length = 8) {
-  return crypto.randomBytes(length).toString('hex').slice(0, length);
-}
+/* ===============================
+   ADMIN ACCESS MIDDLEWARE
+================================ */
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Access denied. Admin only.' });
+  }
+  next();
+};
 
-// ----------------------------
-// Admin Dashboard Data
-// ----------------------------
-router.get('/dashboard', verifyToken, async (req, res) => {
+/* ===============================
+   DASHBOARD
+================================ */
+router.get(
+  '/dashboard',
+  verifyToken,
+  roleAuth(['admin']),
+  async (req, res) => {
+    try {
+      const totalTeachers = await Teacher.countDocuments();
+      const totalStudents = await Student.countDocuments();
+      const totalClasses = await Class.countDocuments();
+
+      // 🔥 Attendance Today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      const attendanceToday = await Attendance.countDocuments({
+        date: { $gte: today, $lt: tomorrow },
+      });
+
+      res.json({
+        totalTeachers,
+        totalStudents,
+        totalClasses,
+        attendanceToday,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Failed to load dashboard' });
+    }
+  }
+);
+
+/* ===============================
+   TEACHERS
+================================ */
+
+// Get all teachers
+router.get('/teachers', verifyToken, requireAdmin, async (req, res) => {
+  const teachers = await Teacher.find().select('-password');
+  res.json(teachers);
+});
+
+// Create teacher
+router.post('/teachers', verifyToken, requireAdmin, async (req, res) => {
+  const { name, email, phone } = req.body;
+
+  const exists = await Teacher.findOne({ email });
+  if (exists) return res.status(400).json({ message: 'Teacher already exists' });
+
+  const tempPassword = crypto.randomBytes(5).toString('hex');
+  const hashed = await bcrypt.hash(tempPassword, 10);
+
+  const teacher = await Teacher.create({
+    name,
+    email,
+    phone,
+    password: hashed,
+    role: 'teacher'
+  });
+
+  res.status(201).json({
+    message: 'Teacher created',
+    teacher: { id: teacher._id, name, email },
+    tempPassword
+  });
+});
+
+/* ===============================
+   STUDENTS
+================================ */
+
+// Get all students
+router.get('/students', verifyToken, requireAdmin, async (req, res) => {
+  const students = await Student.find().select('-password');
+  res.json(students);
+});
+
+// Create student
+router.post('/students', verifyToken, requireAdmin, async (req, res) => {
+  const { name, email, className } = req.body;
+
+  const exists = await Student.findOne({ email });
+  if (exists) return res.status(400).json({ message: 'Student already exists' });
+
+  const tempPassword = crypto.randomBytes(5).toString('hex');
+  const hashed = await bcrypt.hash(tempPassword, 10);
+
+  const student = await Student.create({
+    name,
+    email,
+    className,
+    password: hashed,
+    role: 'student'
+  });
+
+  res.status(201).json({
+    message: 'Student created',
+    student: { id: student._id, name, email },
+    tempPassword
+  });
+});
+
+/* ===============================
+   SUBJECTS
+================================ */
+
+// Get subjects
+router.get('/subjects', verifyToken, requireAdmin, async (req, res) => {
+  const subjects = await Subject.find();
+  res.json(subjects);
+});
+
+// Create subject
+router.post('/subjects', verifyToken, requireAdmin, async (req, res) => {
+  const { name } = req.body;
+  const subject = await Subject.create({ name });
+  res.status(201).json(subject);
+});
+
+// Delete subject
+router.delete('/subjects/:id', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const totalTeachers = await Teacher.countDocuments();
-    const totalClasses = await Class.countDocuments();
-    const totalStudents = await Student.countDocuments();
-    const attendanceToday = await Attendance.countDocuments({
-      date: new Date().toISOString().slice(0, 10),
-    });
-
-    res.json({ totalTeachers, totalClasses, totalStudents, attendanceToday });
-  } catch (error) {
-    console.error('Error in /api/admin/dashboard:', error);
-    res.status(500).json({ message: 'Server Error', error });
+    const deleted = await Subject.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'Subject not found' });
+    res.json({ message: 'Subject deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to delete subject' });
   }
 });
 
-// ----------------------------
-// Create Teacher
-// ----------------------------
-router.post('/create-teacher', verifyToken, async (req, res) => {
-  const { name, email, phone, className } = req.body;
+/* ===============================
+   CLASSES
+================================ */
 
-  try {
-    // Check if teacher exists
-    const exists = await Teacher.findOne({ email });
-    if (exists) return res.status(400).json({ message: 'Teacher already exists' });
-
-    const tempPassword = generateRandomPassword(12);
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
-    const newTeacher = new Teacher({
-      name,
-      email,
-      phone,
-      password: hashedPassword,
-      assignedClasses: className ? [className] : [],
-      role: 'teacher',
-    });
-
-    await newTeacher.save();
-
-    // Return the password to admin
-    res.status(201).json({
-      message: 'Teacher created successfully',
-      teacher: newTeacher,
-      tempPassword
-    });
-  } catch (error) {
-    console.error('Error creating teacher:', error);
-    res.status(500).json({ message: 'Server Error', error });
-  }
+// Get classes
+router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
+  const classes = await Class.find();
+  res.json(classes);
 });
 
-// ----------------------------
-// Create Student
-// ----------------------------
-router.post('/create-student', verifyToken, async (req, res) => {
-  const { name, admissionNo, username, className, guardian } = req.body;
+/* ===============================
+   ATTENDANCE
+================================ */
 
-  try {
-    const exists = await Student.findOne({ username });
-    if (exists) return res.status(400).json({ message: 'Student username already exists' });
-
-    const tempPassword = generateRandomPassword(12);
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
-    const newStudent = new Student({
-      name,
-      admissionNo,
-      username,
-      className: className || null,
-      guardian,
-      password: hashedPassword,
-      role: 'student',
-    });
-
-    await newStudent.save();
-
-    res.status(201).json({
-      message: 'Student created successfully',
-      student: newStudent,
-      tempPassword
-    });
-  } catch (error) {
-    console.error('Error creating student:', error);
-    res.status(500).json({ message: 'Server Error', error });
-  }
+// Get attendance
+router.get('/attendance', verifyToken, requireAdmin, async (req, res) => {
+  const attendance = await Attendance.find()
+    .populate('studentId', 'name')
+    .populate('classId', 'name')
+    .populate('markedBy', 'name');
+  res.json(attendance);
 });
 
-// ----------------------------
-// Get All Students
-// ----------------------------
-router.get('/students', verifyToken, async (req, res) => {
-  try {
-    const students = await Student.find();
-    res.json(students);
-  } catch (error) {
-    console.error('Error fetching students:', error);
-    res.status(500).json({ message: 'Server Error', error });
+// Create attendance (Teacher OR Admin)
+router.post(
+  '/attendance',
+  verifyToken,
+  roleAuth(['admin', 'teacher']),
+  async (req, res) => {
+    try {
+      const { classId, studentId, status } = req.body;
+
+      const attendance = await Attendance.create({
+        classId,
+        studentId,
+        status,
+        markedBy: req.user.id, // 🔥 track teacher/admin
+      });
+
+      res.status(201).json(attendance);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Failed to create attendance' });
+    }
   }
+);
+
+/* ===============================
+   TIMETABLE
+================================ */
+
+// Get timetable
+router.get('/timetable', verifyToken, requireAdmin, async (req, res) => {
+  const timetable = await Timetable.find();
+  res.json(timetable);
 });
 
-// ----------------------------
-// Update Student
-// ----------------------------
-router.post('/students/:id', verifyToken, async (req, res) => {
-  try {
-    const updated = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updated);
-  } catch (error) {
-    console.error('Error updating student:', error);
-    res.status(500).json({ message: 'Server Error', error });
-  }
+// Create timetable entry
+router.post('/timetable', verifyToken, requireAdmin, async (req, res) => {
+  const entry = await Timetable.create(req.body);
+  res.status(201).json(entry);
 });
 
-// ----------------------------
-// Create First Admin
-// ----------------------------
-router.post('/create-first-admin', async (req, res) => {
-  const { name, email, password } = req.body;
+/* ===============================
+   RESULTS / SCORES
+================================ */
 
-  try {
-    const adminExists = await Admin.findOne({ email });
-    if (adminExists) return res.status(400).json({ message: 'Admin already exists' });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newAdmin = new Admin({ name, email, password: hashedPassword, role: 'admin' });
-    await newAdmin.save();
-
-    res.status(201).json({ message: 'First admin created successfully', admin: newAdmin });
-  } catch (error) {
-    console.error('Error creating admin:', error);
-    res.status(500).json({ message: 'Server Error', error });
-  }
+// Get all results (Admin only)
+router.get('/results', verifyToken, requireAdmin, async (req, res) => {
+  const results = await Result.find()
+    .populate('studentId', 'name className')
+    .populate('teacherId', 'name');
+  res.json(results);
 });
+
+// Create result
+router.post(
+  '/results',
+  verifyToken,
+  roleAuth(['admin', 'teacher']),
+  async (req, res) => {
+    try {
+      const { studentId, subject, score, term, session, teacherComment } =
+        req.body;
+
+      const result = await Result.create({
+        studentId,
+        subject,
+        score,
+        term,
+        session,
+        teacherComment,
+        teacherId: req.user.id, // 🔥 critical update
+      });
+
+      res.status(201).json({
+        message: 'Result created successfully',
+        result,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error' });
+    }
+  }
+);
+
+// Update result
+router.put(
+  '/results/:id',
+  verifyToken,
+  roleAuth(['admin', 'teacher']),
+  async (req, res) => {
+    try {
+      const updated = await Result.findOneAndUpdate(
+        { _id: req.params.id },
+        req.body,
+        { new: true }
+      );
+
+      res.json({
+        message: 'Result updated successfully',
+        result: updated,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error' });
+    }
+  }
+);
+
+// Get results for one student (Admin, Teacher, or Parent)
+router.get(
+  '/results/student/:studentId',
+  verifyToken,
+  roleAuth(['admin', 'teacher', 'student']),
+  async (req, res) => {
+    try {
+      const results = await Result.find({
+        studentId: req.params.studentId,
+      });
+
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch results' });
+    }
+  }
+);
+
+// 🔥 TERM SUMMARY (Total + Average)
+router.get(
+  '/results/student/:studentId/summary',
+  verifyToken,
+  async (req, res) => {
+    try {
+      const { term, session } = req.query;
+
+      // Student can only see own results
+      if (
+        req.user.role === 'student' &&
+        req.user.id !== req.params.studentId
+      ) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const results = await Result.find({
+        studentId: req.params.studentId,
+        term,
+        session,
+      });
+
+      const totalScore = results.reduce(
+        (sum, item) => sum + item.score,
+        0
+      );
+
+      const averageScore =
+        results.length > 0
+          ? (totalScore / results.length).toFixed(2)
+          : 0;
+
+      res.json({
+        totalSubjects: results.length,
+        totalScore,
+        averageScore,
+        results,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error' });
+    }
+  }
+);
+
+/* ===============================
+   REPORTS
+================================ */
+
+// Basic report summary
+router.get('/reports', verifyToken, requireAdmin, async (req, res) => {
+  const totalStudents = await Student.countDocuments();
+  const totalTeachers = await Teacher.countDocuments();
+  const totalResults = await Result.countDocuments();
+
+  res.json({
+    totalStudents,
+    totalTeachers,
+    totalResults
+  });
+});
+
+// Generate PDF result sheet for a student per term/session
+router.get(
+  '/results/:studentId/pdf',
+  verifyToken,
+  async (req, res) => {
+    try {
+      const { term, session } = req.query;
+      const { studentId } = req.params;
+
+      // Access control: students can see only their own results
+      if (req.user.role === 'student' && req.user.id !== studentId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      // Fetch student info
+      const student = await Student.findById(studentId);
+      if (!student) {
+        return res.status(404).json({ message: 'Student not found' });
+      }
+
+      // Fetch results for term/session
+      const results = await Result.find({ studentId, term, session });
+
+      if (!results.length) {
+        return res.status(404).json({ message: 'No results found for this term/session' });
+      }
+
+      // Create PDF document
+      const doc = new PDFDocument({ margin: 50 });
+
+      // Set response headers
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=${student.name}_Result_${term}_${session}.pdf`
+      );
+
+      // Pipe PDF to response
+      doc.pipe(res);
+
+      // --- HEADER ---
+      doc
+        .fontSize(20)
+        .text('Kenmatics School', { align: 'center' })
+        .moveDown(0.5);
+      doc
+        .fontSize(16)
+        .text(`Student Result Sheet`, { align: 'center' })
+        .moveDown(1);
+
+      doc
+        .fontSize(12)
+        .text(`Name: ${student.name}`)
+        .text(`Class: ${student.className}`)
+        .text(`Term: ${term}`)
+        .text(`Session: ${session}`)
+        .moveDown(1);
+
+      // --- TABLE HEADER ---
+      doc
+        .fontSize(12)
+        .text('Subject', 50, doc.y, { width: 100 })
+        .text('Score', 150, doc.y, { width: 50 })
+        .text('Grade', 200, doc.y, { width: 50 })
+        .text('Remark', 250, doc.y, { width: 100 })
+        .text('Teacher Comment', 350, doc.y, { width: 200 })
+        .moveDown(0.5);
+
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+
+      // --- TABLE ROWS ---
+      results.forEach((r) => {
+        doc
+          .fontSize(12)
+          .text(r.subject, 50, doc.y, { width: 100 })
+          .text(r.score, 150, doc.y, { width: 50 })
+          .text(r.grade, 200, doc.y, { width: 50 })
+          .text(r.gradeRemark, 250, doc.y, { width: 100 })
+          .text(r.teacherComment || '-', 350, doc.y, { width: 200 })
+          .moveDown(0.5);
+      });
+
+      // --- SUMMARY ---
+      const totalScore = results.reduce((sum, r) => sum + r.score, 0);
+      const averageScore = (totalScore / results.length).toFixed(2);
+
+      doc.moveDown(1);
+      doc
+        .fontSize(12)
+        .text(`Total Score: ${totalScore}`, { continued: true })
+        .text(`   Average Score: ${averageScore}`);
+
+      doc.end();
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Failed to generate PDF' });
+    }
+  }
+);
+
 
 module.exports = router;
