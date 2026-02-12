@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const classSchema = new mongoose.Schema({
-  className: { type: String, required: true, unique: true },
+  name: { type: String, required: true, unique: true },
   description: { type: String },
   level: { type: String, required: true },
   arm: { type: String, required: true },

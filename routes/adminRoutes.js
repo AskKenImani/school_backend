@@ -130,21 +130,40 @@ router.post('/teachers', verifyToken, requireAdmin, async (req, res) => {
 
 // Get all students
 router.get('/students', verifyToken, requireAdmin, async (req, res) => {
-  const students = await Student.find().select('-password');
-  res.json(students);
+  try {
+    const students = await Student.find().populate('classId', 'name');
+
+    res.json(
+      students.map((s) => ({
+        id: s._id,
+        name: s.name,
+        email: s.email,
+        admissionNo: s.admissionNo,
+        username: s.username,
+        guardian: s.guardian,
+        classId: s.classId?._id || null,
+        className: s.classId?.name || null,
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch students' });
+  }
 });
 
 // Create student
 router.post('/students', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { name, email, classId } = req.body;
+    const { name, email, admissionNo, username, guardian, classId } = req.body;
 
-    if (!name || !email) {
-      return res.status(400).json({ message: 'Name and email required' });
+    if (!name || !email || !admissionNo || !username) {
+      return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Check duplicate
-    const exists = await Student.findOne({ email });
+    const exists = await Student.findOne({
+      $or: [{ email }, { admissionNo }, { username }],
+    });
+
     if (exists) {
       return res.status(400).json({ message: 'Student already exists' });
     }
@@ -152,10 +171,9 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
     let klass = null;
 
     if (classId) {
-      klass = await Class.findById(classId);
-      if (!klass) {
-        return res.status(400).json({ message: 'Class not found' });
-      }
+      await Class.findByIdAndUpdate(classId, {
+        $addToSet: { studentIds: student._id },
+      });
     }
 
     const tempPassword = crypto.randomBytes(5).toString('hex');
@@ -164,9 +182,11 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
     const student = await Student.create({
       name,
       email,
-      classId: klass ? klass._id : null,
-      password: hashed,
-      role: 'student'
+      admissionNo,
+      username,
+      guardian,
+      classId: classId || null,
+      role: 'student',
     });
 
     if (klass) {
@@ -175,9 +195,13 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
     }
 
     res.status(201).json({
-      message: 'Student created',
-      student,
-      tempPassword
+      id: student._id,
+      name: student.name,
+      email: student.email,
+      admissionNo: student.admissionNo,
+      username: student.username,
+      guardian: student.guardian,
+      classId: student.classId,
     });
 
   } catch (err) {
@@ -221,8 +245,26 @@ router.delete('/subjects/:id', verifyToken, requireAdmin, async (req, res) => {
 
 // Get classes
 router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
-  const classes = await Class.find();
-  res.json(classes);
+  try {
+    const classes = await Class.find()
+      .populate('teacherId', 'name')
+      .populate('studentIds', 'name');
+
+    res.json(
+      classes.map((c) => ({
+        id: c._id,
+        name: c.name,
+        level: c.level,
+        arm: c.arm,
+        teacherId: c.teacherId?._id || null,
+        teacherName: c.teacherId?.name || null,
+        studentIds: c.studentIds.map((s) => s._id),
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch classes' });
+  }
 });
 
 // Create a new class
@@ -231,28 +273,58 @@ router.post('/classes', verifyToken, requireAdmin, async (req, res) => {
     const { level, arm } = req.body;
 
     if (!level || !arm) {
-      return res.status(400).json({ message: 'Level and Arm are required' });
+      return res.status(400).json({ message: 'Level and Arm required' });
     }
 
-    const className = `${level} ${arm}`; 
+    const name = `${level} ${arm}`;
 
-    const exists = await Class.findOne({ className });
+    const exists = await Class.findOne({ name });
     if (exists) {
       return res.status(400).json({ message: 'Class already exists' });
     }
 
     const newClass = await Class.create({
-      className, 
-      description: '',
-      subjectIds: [],
-      students: []
+      name,
+      level,
+      arm,
     });
 
-    res.status(201).json(newClass);
-
+    res.status(201).json({
+      id: newClass._id,
+      name: newClass.name,
+      level: newClass.level,
+      arm: newClass.arm,
+      teacherId: null,
+      studentIds: [],
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Failed to create class', error: err.message });
+    res.status(500).json({ message: 'Failed to create class' });
+  }
+});
+
+// Update class (assign teacher or students)
+router.put('/classes/:id', verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { teacherId, studentIds } = req.body;
+
+    const klass = await Class.findById(req.params.id);
+    if (!klass) return res.status(404).json({ message: 'Class not found' });
+
+    if (teacherId !== undefined) {
+      klass.teacherId = teacherId;
+    }
+
+    if (studentIds !== undefined) {
+      klass.studentIds = studentIds;
+    }
+
+    await klass.save();
+
+    res.json({ message: 'Class updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to update class' });
   }
 });
 
