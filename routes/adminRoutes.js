@@ -137,38 +137,38 @@ router.get('/students', verifyToken, requireAdmin, async (req, res) => {
 // Create student
 router.post('/students', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { name, email, className } = req.body;
+    const { name, email, classId } = req.body;
 
-    if (!name || !email) return res.status(400).json({ message: 'Name and email required' });
-
-    let klass = null;
-    if (classId) {
-      klass = await Class.findById(classId);
-      if (!klass) return res.status(400).json({ message: 'Class not found' });
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email required' });
     }
 
-    // Check if student already exists
+    // Check duplicate
     const exists = await Student.findOne({ email });
-    if (exists) return res.status(400).json({ message: 'Student already exists' });
+    if (exists) {
+      return res.status(400).json({ message: 'Student already exists' });
+    }
 
-    // Lookup class by className
-    // const klass = await Class.findOne({ className });
-    if (!klass) return res.status(400).json({ message: `Class "${className}" not found` });
+    let klass = null;
 
-    // Generate temporary password
+    if (classId) {
+      klass = await Class.findById(classId);
+      if (!klass) {
+        return res.status(400).json({ message: 'Class not found' });
+      }
+    }
+
     const tempPassword = crypto.randomBytes(5).toString('hex');
     const hashed = await bcrypt.hash(tempPassword, 10);
 
-    // Create student
     const student = await Student.create({
       name,
       email,
-      classId: klass._id || null, // ✅ store ObjectId
+      classId: klass ? klass._id : null,
       password: hashed,
       role: 'student'
     });
 
-    // Optionally, also add student to Class.students array
     if (klass) {
       klass.students.push(student._id);
       await klass.save();
@@ -176,15 +176,15 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
 
     res.status(201).json({
       message: 'Student created',
-      student: { id: student._id, name, email, className },
+      student,
       tempPassword
     });
+
   } catch (err) {
     console.error('Student creation error:', err);
     res.status(500).json({ message: 'Failed to create student', error: err.message });
   }
 });
-
 
 /* ===============================
    SUBJECTS
@@ -225,23 +225,34 @@ router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
   res.json(classes);
 });
 
-// Create a class
 // Create a new class
 router.post('/classes', verifyToken, requireAdmin, async (req, res) => {
   try {
     const { level, arm } = req.body;
-    if (!level || !arm) return res.status(400).json({ message: 'Level and Arm are required' });
 
-    const name = `${level} ${arm}`; // e.g., "JSS 1 A"
+    if (!level || !arm) {
+      return res.status(400).json({ message: 'Level and Arm are required' });
+    }
 
-    const exists = await Class.findOne({ name });
-    if (exists) return res.status(400).json({ message: 'Class already exists' });
+    const className = `${level} ${arm}`; 
 
-    const newClass = await Class.create({ name, level, arm });
+    const exists = await Class.findOne({ className });
+    if (exists) {
+      return res.status(400).json({ message: 'Class already exists' });
+    }
+
+    const newClass = await Class.create({
+      className, 
+      description: '',
+      subjectIds: [],
+      students: []
+    });
+
     res.status(201).json(newClass);
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Failed to create class' });
+    res.status(500).json({ message: 'Failed to create class', error: err.message });
   }
 });
 
