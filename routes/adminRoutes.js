@@ -88,39 +88,87 @@ router.get(
 
 // Get all teachers
 router.get('/teachers', verifyToken, requireAdmin, async (req, res) => {
-  const teachers = await Teacher.find().select('-password');
-  res.json(teachers);
+  try {
+    const teachers = await Teacher.find().select('-password');
+    res.json(
+      teachers.map(t => ({
+        id: t._id,
+        name: t.name,
+        email: t.email,
+        phone: t.phone,
+        classTeacherOf: t.classTeacherOf || null
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch teachers' });
+  }
 });
 
 // Create teacher
 router.post('/teachers', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { name, email, phone, subject = '' } = req.body; // subject default to empty
+    const { name, email, phone } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email required' });
+    }
 
     const exists = await Teacher.findOne({ email });
-    if (exists) return res.status(400).json({ message: 'Teacher already exists' });
+    if (exists) {
+      return res.status(400).json({ message: 'Teacher already exists' });
+    }
 
-    // Generate random password (plain-text to return to frontend)
-    const tempPassword = crypto.randomBytes(5).toString('hex'); // 10-char random
+    const tempPassword = crypto.randomBytes(5).toString('hex');
     const hashed = await bcrypt.hash(tempPassword, 10);
 
     const teacher = await Teacher.create({
       name,
       email,
       phone,
-      subject,
       password: hashed,
-      role: 'teacher'
+      role: 'teacher',
+      classTeacherOf: null
     });
 
     res.status(201).json({
-      message: 'Teacher created',
-      teacher: { id: teacher._id, name, email, subject, phone },
-      tempPassword // send to frontend to display
+      teacher: {
+        id: teacher._id,
+        name,
+        email,
+        phone,
+        classTeacherOf: null
+      },
+      tempPassword
     });
   } catch (err) {
     console.error('Teacher creation error:', err);
-    res.status(500).json({ message: 'Failed to create teacher', error: err.message });
+    res.status(500).json({ message: 'Failed to create teacher' });
+  }
+});
+
+// 🔥 UPDATE teacher (edit OR assign class)
+router.put('/teachers/:id', verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { name, email, phone, classTeacherOf } = req.body;
+
+    const teacher = await Teacher.findById(req.params.id);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    if (name !== undefined) teacher.name = name;
+    if (email !== undefined) teacher.email = email;
+    if (phone !== undefined) teacher.phone = phone;
+    if (classTeacherOf !== undefined) {
+      teacher.classTeacherOf = classTeacherOf || null;
+    }
+
+    await teacher.save();
+    res.json({ message: 'Teacher updated successfully' });
+  } catch (err) {
+    console.error('Teacher update error:', err);
+    res.status(500).json({ message: 'Failed to update teacher' });
   }
 });
 
