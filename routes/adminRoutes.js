@@ -186,6 +186,7 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
       username,
       guardian,
       classId: classId || null,
+      password: hashed,
       role: 'student',
     });
 
@@ -248,7 +249,7 @@ router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
   try {
     const classes = await Class.find()
       .populate('teacherId', 'name')
-      .populate('studentIds', 'name');
+      .populate('students', 'name');
 
     res.json(
       classes.map((c) => ({
@@ -258,16 +259,16 @@ router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
         arm: c.arm,
         teacherId: c.teacherId?._id || null,
         teacherName: c.teacherId?.name || null,
-        studentIds: c.studentIds.map((s) => s._id),
+        studentIds: c.students.map((s) => s._id),
       }))
     );
   } catch (err) {
-    console.error(err);
+    console.error('GET /classes error:', err);
     res.status(500).json({ message: 'Failed to fetch classes' });
   }
 });
 
-// Create a new class
+// Create class
 router.post('/classes', verifyToken, requireAdmin, async (req, res) => {
   try {
     const { level, arm } = req.body;
@@ -287,6 +288,7 @@ router.post('/classes', verifyToken, requireAdmin, async (req, res) => {
       name,
       level,
       arm,
+      students: [],
     });
 
     res.status(201).json({
@@ -298,32 +300,34 @@ router.post('/classes', verifyToken, requireAdmin, async (req, res) => {
       studentIds: [],
     });
   } catch (err) {
-    console.error(err);
+    console.error('POST /classes error:', err);
     res.status(500).json({ message: 'Failed to create class' });
   }
 });
 
-// Update class (assign teacher or students)
+// Update class (assign teacher / students)
 router.put('/classes/:id', verifyToken, requireAdmin, async (req, res) => {
   try {
     const { teacherId, studentIds } = req.body;
 
     const klass = await Class.findById(req.params.id);
-    if (!klass) return res.status(404).json({ message: 'Class not found' });
+    if (!klass) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
 
     if (teacherId !== undefined) {
-      klass.teacherId = teacherId;
+      klass.teacherId = teacherId || null;
     }
 
     if (studentIds !== undefined) {
-      klass.studentIds = studentIds;
+      klass.students = studentIds;
     }
 
     await klass.save();
 
     res.json({ message: 'Class updated successfully' });
   } catch (err) {
-    console.error(err);
+    console.error('PUT /classes error:', err);
     res.status(500).json({ message: 'Failed to update class' });
   }
 });
