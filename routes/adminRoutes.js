@@ -168,14 +168,6 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ message: 'Student already exists' });
     }
 
-    let klass = null;
-
-    if (classId) {
-      await Class.findByIdAndUpdate(classId, {
-        $addToSet: { studentIds: student._id },
-      });
-    }
-
     const tempPassword = crypto.randomBytes(5).toString('hex');
     const hashed = await bcrypt.hash(tempPassword, 10);
 
@@ -190,9 +182,11 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
       role: 'student',
     });
 
-    if (klass) {
-      klass.students.push(student._id);
-      await klass.save();
+    // ✅ THEN UPDATE CLASS
+    if (classId) {
+      await Class.findByIdAndUpdate(classId, {
+        $addToSet: { students: student._id },
+      });
     }
 
     res.status(201).json({
@@ -207,9 +201,10 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
 
   } catch (err) {
     console.error('Student creation error:', err);
-    res.status(500).json({ message: 'Failed to create student', error: err.message });
+    res.status(500).json({ message: 'Failed to create student' });
   }
 });
+
 
 /* ===============================
    SUBJECTS
