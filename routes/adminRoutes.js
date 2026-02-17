@@ -253,13 +253,15 @@ router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
 
     res.json(
       classes.map((c) => ({
-        id: c._id,
+        id: c._id.toString(),
         name: c.name,
         level: c.level,
         arm: c.arm,
-        teacherId: c.teacherId?._id || null,
+        teacherId: c.teacherId ? c.teacherId._id.toString() : null,
         teacherName: c.teacherId?.name || null,
-        studentIds: c.students.map((s) => s._id),
+        studentIds: Array.isArray(c.students)
+          ? c.students.map((s) => s._id.toString())
+          : [],
       }))
     );
   } catch (err) {
