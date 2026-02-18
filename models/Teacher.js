@@ -6,6 +6,7 @@ const teacherSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   subject: { type: String, default: '' },
   password: { type: String, required: true },
+  classTeacherOf: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
   assignedClasses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
   uploadedNotes: [{
     fileUrl: { type: String }, // The URL of the uploaded file
