@@ -253,6 +253,46 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Update student
+router.put('/students/:id', verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { name, email, guardian, classId } = req.body;
+
+    const student = await Student.findById(req.params.id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (name !== undefined) student.name = name;
+    if (email !== undefined) student.email = email;
+    if (guardian !== undefined) student.guardian = guardian;
+
+    // 🔥 Handle class change properly
+    if (classId !== undefined && classId !== student.classId?.toString()) {
+      // remove from old class
+      if (student.classId) {
+        await Class.findByIdAndUpdate(student.classId, {
+          $pull: { students: student._id },
+        });
+      }
+
+      // add to new class
+      if (classId) {
+        await Class.findByIdAndUpdate(classId, {
+          $addToSet: { students: student._id },
+        });
+      }
+
+      student.classId = classId || null;
+    }
+
+    await student.save();
+    res.json({ message: 'Student updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to update student' });
+  }
+});
 
 /* ===============================
    SUBJECTS
@@ -459,7 +499,7 @@ router.post(
         term,
         session,
         teacherComment,
-        teacherId: req.user.id, // 🔥 critical update
+        teacherId: req.user.id,
       });
 
       res.status(201).json({
@@ -514,6 +554,38 @@ router.get(
     }
   }
 );
+
+// Promote students
+router.post('/students/promote', verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { currentClassName, nextClassName, ids } = req.body;
+
+    const currentClass = await Class.findOne({ name: currentClassName });
+    const nextClass = await Class.findOne({ name: nextClassName });
+
+    if (!currentClass || !nextClass) {
+      return res.status(400).json({ message: 'Class not found' });
+    }
+
+    await Student.updateMany(
+      { _id: { $in: ids } },
+      { classId: nextClass._id }
+    );
+
+    await Class.findByIdAndUpdate(currentClass._id, {
+      $pull: { students: { $in: ids } },
+    });
+
+    await Class.findByIdAndUpdate(nextClass._id, {
+      $addToSet: { students: { $each: ids } },
+    });
+
+    res.json({ message: 'Students promoted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Promotion failed' });
+  }
+});
 
 // 🔥 TERM SUMMARY (Total + Average)
 router.get(
@@ -578,6 +650,14 @@ router.get('/reports', verifyToken, requireAdmin, async (req, res) => {
 });
 
 // Generate PDF result sheet for a student per term/session
+const getGrade = (score) => {
+  if (score >= 70) return { grade: 'A', remark: 'Excellent' };
+  if (score >= 60) return { grade: 'B', remark: 'Very Good' };
+  if (score >= 50) return { grade: 'C', remark: 'Good' };
+  if (score >= 45) return { grade: 'D', remark: 'Fair' };
+  return { grade: 'F', remark: 'Fail' };
+};
+
 router.get(
   '/results/:studentId/pdf',
   verifyToken,
@@ -592,7 +672,10 @@ router.get(
       }
 
       // Fetch student info
-      const student = await Student.findById(studentId);
+      const student = await Student
+        .findById(studentId)
+        .populate('classId', 'name');
+
       if (!student) {
         return res.status(404).json({ message: 'Student not found' });
       }
@@ -630,7 +713,7 @@ router.get(
       doc
         .fontSize(12)
         .text(`Name: ${student.name}`)
-        .text(`Class: ${student.className}`)
+        .text(`Class: ${student.classId?.name || '-'}`)
         .text(`Term: ${term}`)
         .text(`Session: ${session}`)
         .moveDown(1);
@@ -649,12 +732,14 @@ router.get(
 
       // --- TABLE ROWS ---
       results.forEach((r) => {
+        const { grade, remark } = getGrade(r.score);
+
         doc
           .fontSize(12)
           .text(r.subject, 50, doc.y, { width: 100 })
           .text(r.score, 150, doc.y, { width: 50 })
-          .text(r.grade, 200, doc.y, { width: 50 })
-          .text(r.gradeRemark, 250, doc.y, { width: 100 })
+          .text(grade, 200, doc.y, { width: 50 })
+          .text(remark, 250, doc.y, { width: 100 })
           .text(r.teacherComment || '-', 350, doc.y, { width: 200 })
           .moveDown(0.5);
       });

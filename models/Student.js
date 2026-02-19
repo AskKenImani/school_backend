@@ -10,7 +10,7 @@ const studentSchema = new mongoose.Schema({
   classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null, },
   attendanceHistory: [{
     date: { type: Date, default: Date.now },
-    status: { type: String, enum: ['Present', 'Absent'], required: true },
+    status: { type: String, enum: ['present', 'absent'], required: true },
   }],
   grades: [{
     subject: { type: String },
