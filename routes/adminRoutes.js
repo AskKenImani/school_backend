@@ -238,14 +238,18 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
     }
 
     res.status(201).json({
-      id: student._id,
-      name: student.name,
-      email: student.email,
-      admissionNo: student.admissionNo,
-      username: student.username,
-      guardian: student.guardian,
-      classId: student.classId,
+      student: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+        admissionNo: student.admissionNo,
+        username: student.username,
+        guardian: student.guardian,
+        classId: student.classId,
+      },
+      tempPassword
     });
+
 
   } catch (err) {
     console.error('Student creation error:', err);
