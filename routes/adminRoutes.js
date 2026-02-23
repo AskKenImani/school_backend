@@ -302,28 +302,67 @@ router.put('/students/:id', verifyToken, requireAdmin, async (req, res) => {
    SUBJECTS
 ================================ */
 
-// Get subjects
+// Get all subjects
 router.get('/subjects', verifyToken, requireAdmin, async (req, res) => {
-  const subjects = await Subject.find();
-  res.json(subjects);
+  try {
+    const subjects = await Subject
+      .find()
+      .populate('classId', 'level arm')
+      .populate('teacherId', 'name email');
+
+    res.json(subjects);
+  } catch (err) {
+    console.error('Fetch subjects error:', err);
+    res.status(500).json({ message: 'Failed to fetch subjects' });
+  }
 });
 
 // Create subject
 router.post('/subjects', verifyToken, requireAdmin, async (req, res) => {
-  const { name } = req.body;
-  const subject = await Subject.create({ name });
-  res.status(201).json(subject);
+  try {
+    const { name } = req.body;
+    const subject = await Subject.create({ name });
+    res.status(201).json(subject);
+  } catch (err) {
+    console.error('Create subject error:', err);
+    res.status(500).json({ message: 'Failed to create subject' });
+  }
 });
 
 // Delete subject
 router.delete('/subjects/:id', verifyToken, requireAdmin, async (req, res) => {
   try {
     const deleted = await Subject.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: 'Subject not found' });
+    if (!deleted) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
     res.json({ message: 'Subject deleted' });
   } catch (err) {
-    console.error(err);
+    console.error('Delete subject error:', err);
     res.status(500).json({ message: 'Failed to delete subject' });
+  }
+});
+
+/* ===============================
+   ASSIGN SUBJECT TO CLASS & TEACHER
+   Admin only
+================================ */
+router.put('/subjects/:id/assign', verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { classId, teacherId } = req.body;
+
+    const subject = await Subject.findById(req.params.id);
+    if (!subject) return res.status(404).json({ message: 'Subject not found' });
+
+    subject.classId = classId || null;
+    subject.teacherId = teacherId || null;
+
+    await subject.save();
+
+    res.json({ message: 'Subject assignment updated', subject });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to assign subject' });
   }
 });
 

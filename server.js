@@ -7,8 +7,9 @@ const adminRoutes = require('./routes/adminRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const teacherRoutes = require('./routes/teacherRoutes');
 const authRoutes = require('./routes/authRoutes');
+const sharedRoutes = require('./routes/sharedRoutes');
 
-dotenv.config(); // Load environment variables
+dotenv.config();
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/shared', sharedRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI, {
