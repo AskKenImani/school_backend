@@ -345,23 +345,67 @@ router.delete('/subjects/:id', verifyToken, requireAdmin, async (req, res) => {
 
 /* ===============================
    ASSIGN SUBJECT TO CLASS & TEACHER
-   Admin only
+   Admin only (IDEMPOTENT)
 ================================ */
 router.put('/subjects/:id/assign', verifyToken, requireAdmin, async (req, res) => {
   try {
     const { classId, teacherId } = req.body;
+    const subjectId = req.params.id;
 
-    const subject = await Subject.findById(req.params.id);
-    if (!subject) return res.status(404).json({ message: 'Subject not found' });
+    if (!classId) {
+      return res.status(400).json({ message: 'classId is required' });
+    }
 
-    subject.classId = classId || null;
-    subject.teacherId = teacherId || null;
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
 
-    await subject.save();
+    const classDoc = await Class.findById(classId);
+    if (!classDoc) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
 
-    res.json({ message: 'Subject assignment updated', subject });
+    // Check if subject already assigned to this class
+    const existingMapping = classDoc.subjectMappings.find(
+      m => m.subjectId.toString() === subjectId
+    );
+
+    // 🔒 CASE 1: Already assigned → allow ONLY teacher update
+    if (existingMapping) {
+      if (teacherId) {
+        existingMapping.teacherId = teacherId;
+        await classDoc.save();
+
+        return res.json({
+          message: 'Teacher updated for already assigned subject',
+          subjectId,
+          classId,
+          teacherId
+        });
+      }
+
+      return res.status(409).json({
+        message: 'Subject already assigned to this class'
+      });
+    }
+
+    // ✅ CASE 2: New assignment
+    classDoc.subjectMappings.push({
+      subjectId,
+      teacherId: teacherId || null
+    });
+
+    await classDoc.save();
+
+    res.status(201).json({
+      message: 'Subject assigned to class successfully',
+      subjectId,
+      classId,
+      teacherId: teacherId || null
+    });
   } catch (err) {
-    console.error(err);
+    console.error('Assign subject error:', err);
     res.status(500).json({ message: 'Failed to assign subject' });
   }
 });
