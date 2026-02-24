@@ -420,8 +420,15 @@ router.put(
 router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
   try {
     const classes = await Class.find()
-      .populate('teacherId', 'name')
-      .populate('students', 'name');
+      .populate('teacherId', 'name email')
+      .populate({
+        path: 'subjectMappings.subjectId',
+        select: 'name'
+      })
+      .populate({
+        path: 'subjectMappings.teacherId',
+        select: 'name email'
+      });
 
     res.json(
       classes.map((c) => ({
