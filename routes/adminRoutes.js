@@ -127,6 +127,8 @@ router.post('/teachers', verifyToken, requireAdmin, async (req, res) => {
       email,
       phone,
       password: hashed,
+      tempPassword,
+      passwordResetRequired: true,
       role: 'teacher',
       classTeacherOf: null
     });
@@ -137,6 +139,7 @@ router.post('/teachers', verifyToken, requireAdmin, async (req, res) => {
         name,
         email,
         phone,
+        tempPassword,
         classTeacherOf: null
       },
       tempPassword

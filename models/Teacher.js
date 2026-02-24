@@ -6,6 +6,8 @@ const teacherSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   subject: { type: String, default: '' },
   password: { type: String, required: true },
+  tempPassword: { type: String, default: null },
+  passwordResetRequired: { type: Boolean, default: true },
   classTeacherOf: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
   assignedClasses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
   uploadedNotes: [{
