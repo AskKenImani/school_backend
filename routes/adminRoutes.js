@@ -436,11 +436,31 @@ router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
         name: c.name,
         level: c.level,
         arm: c.arm,
+
         teacherId: c.teacherId ? c.teacherId._id.toString() : null,
         teacherName: c.teacherId?.name || null,
+
         studentIds: Array.isArray(c.students)
           ? c.students.map((s) => s._id.toString())
           : [],
+
+        subjectMappings: Array.isArray(c.subjectMappings)
+          ? c.subjectMappings.map((m) => ({
+              _id: m._id.toString(),
+              subjectId: m.subjectId
+                ? {
+                    _id: m.subjectId._id.toString(),
+                    name: m.subjectId.name
+                  }
+                : null,
+              teacherId: m.teacherId
+                ? {
+                    _id: m.teacherId._id.toString(),
+                    name: m.teacherId.name
+                  }
+                : null
+            }))
+          : []
       }))
     );
   } catch (err) {
