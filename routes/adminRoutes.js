@@ -420,6 +420,7 @@ router.put(
 router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
   try {
     const classes = await Class.find()
+      .sort({ name: 1 })
       .populate('teacherId', 'name email')
       .populate({
         path: 'subjectMappings.subjectId',
