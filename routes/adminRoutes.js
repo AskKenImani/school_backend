@@ -366,6 +366,11 @@ router.put('/subjects/:id/assign', verifyToken, requireAdmin, async (req, res) =
       return res.status(404).json({ message: 'Class not found' });
     }
 
+    // ✅ HARD GUARD (this fixes your crash)
+    if (!Array.isArray(classDoc.subjectMappings)) {
+      classDoc.subjectMappings = [];
+    }
+
     // Check if subject already assigned to this class
     const existingMapping = classDoc.subjectMappings.find(
       m => m.subjectId.toString() === subjectId

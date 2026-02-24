@@ -15,6 +15,20 @@ const classSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    subjectMappings: [
+      {
+        subjectId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Subject',
+          required: true
+        },
+        teacherId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Teacher',
+          default: null
+        }
+      }
+    ],
     subjectIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
