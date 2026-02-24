@@ -347,73 +347,70 @@ router.delete('/subjects/:id', verifyToken, requireAdmin, async (req, res) => {
    ASSIGN SUBJECT TO CLASS & TEACHER
    Admin only (IDEMPOTENT)
 ================================ */
-router.put('/subjects/:id/assign', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const { classId, teacherId } = req.body;
-    const subjectId = req.params.id;
+router.put(
+  '/subjects/:id/assign',
+  verifyToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { classId, teacherId } = req.body;
+      const subjectId = req.params.id;
 
-    if (!classId) {
-      return res.status(400).json({ message: 'classId is required' });
-    }
+      if (!classId) {
+        return res.status(400).json({ message: 'classId is required' });
+      }
 
-    const subject = await Subject.findById(subjectId);
-    if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
-    }
+      const subject = await Subject.findById(subjectId);
+      if (!subject) {
+        return res.status(404).json({ message: 'Subject not found' });
+      }
 
-    const classDoc = await Class.findById(classId);
-    if (!classDoc) {
-      return res.status(404).json({ message: 'Class not found' });
-    }
+      const classDoc = await Class.findById(classId);
+      if (!classDoc) {
+        return res.status(404).json({ message: 'Class not found' });
+      }
 
-    // ✅ HARD GUARD (this fixes your crash)
-    if (!Array.isArray(classDoc.subjectMappings)) {
-      classDoc.subjectMappings = [];
-    }
+      if (!Array.isArray(classDoc.subjectMappings)) {
+        classDoc.subjectMappings = [];
+      }
 
-    // Check if subject already assigned to this class
-    const existingMapping = classDoc.subjectMappings.find(
-      m => m.subjectId.toString() === subjectId
-    );
+      const mapping = classDoc.subjectMappings.find(
+        m => String(m.subjectId) === String(subjectId)
+      );
 
-    // 🔒 CASE 1: Already assigned → allow ONLY teacher update
-    if (existingMapping) {
-      if (teacherId) {
-        existingMapping.teacherId = teacherId;
+      // 🔁 UPDATE teacher
+      if (mapping) {
+        mapping.teacherId = teacherId || null;
         await classDoc.save();
 
         return res.json({
-          message: 'Teacher updated for already assigned subject',
+          message: 'Teacher updated',
           subjectId,
           classId,
           teacherId
         });
       }
 
-      return res.status(409).json({
-        message: 'Subject already assigned to this class'
+      // ➕ NEW assignment
+      classDoc.subjectMappings.push({
+        subjectId,
+        teacherId: teacherId || null
       });
+
+      await classDoc.save();
+
+      res.status(201).json({
+        message: 'Subject assigned',
+        subjectId,
+        classId,
+        teacherId
+      });
+    } catch (err) {
+      console.error('Assign subject error:', err);
+      res.status(500).json({ message: 'Failed to assign subject' });
     }
-
-    // ✅ CASE 2: New assignment
-    classDoc.subjectMappings.push({
-      subjectId,
-      teacherId: teacherId || null
-    });
-
-    await classDoc.save();
-
-    res.status(201).json({
-      message: 'Subject assigned to class successfully',
-      subjectId,
-      classId,
-      teacherId: teacherId || null
-    });
-  } catch (err) {
-    console.error('Assign subject error:', err);
-    res.status(500).json({ message: 'Failed to assign subject' });
   }
-});
+);
 
 /* ===============================
    CLASSES
