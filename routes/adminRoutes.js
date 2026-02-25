@@ -89,7 +89,7 @@ router.get(
 // Get all teachers
 router.get('/teachers', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const teachers = await Teacher.find().select('-password');
+    const teachers = await Teacher.find().select('+tempPassword');
     res.json(
       teachers.map(t => ({
         id: t._id,
@@ -174,6 +174,31 @@ router.put('/teachers/:id', verifyToken, requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'Failed to update teacher' });
   }
 });
+
+router.put('/teachers/:id/reset-password', async (req, res) => {
+  try {
+    const tempPassword = crypto.randomBytes(4).toString('hex')
+    const hashed = await bcrypt.hash(tempPassword, 10)
+
+    const teacher = await Teacher.findByIdAndUpdate(
+      req.params.id,
+      {
+        password: hashed,
+        tempPassword,
+        passwordResetRequired: true
+      },
+      { new: true }
+    )
+
+    res.json({
+      message: 'Password regenerated',
+      tempPassword
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Failed to reset password' })
+  }
+})
 
 /* ===============================
    STUDENTS
