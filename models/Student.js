@@ -17,6 +17,15 @@ const studentSchema = new mongoose.Schema({
     subject: { type: String },
     grade: { type: String },
   }],
+  tempPassword: {
+    type: String,
+    default: null,
+    select: false
+  },
+  passwordResetRequired: {
+    type: Boolean,
+    default: true
+  },
 }, { timestamps: true });
 
 const Student = mongoose.model('Student', studentSchema);

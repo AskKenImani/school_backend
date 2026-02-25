@@ -208,7 +208,7 @@ router.put('/teachers/:id/reset-password', verifyToken, requireAdmin, async (req
 // Get all students
 router.get('/students', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const students = await Student.find().populate('classId', 'name');
+    const students = await Student.find().select('+tempPassword').populate('classId', 'name');
 
     res.json(
       students.map((s) => ({
@@ -220,6 +220,7 @@ router.get('/students', verifyToken, requireAdmin, async (req, res) => {
         guardian: s.guardian,
         classId: s.classId?._id || null,
         className: s.classId?.name || null,
+        tempPassword: s.tempPassword || null,
       }))
     );
   } catch (err) {
@@ -256,10 +257,12 @@ router.post('/students', verifyToken, requireAdmin, async (req, res) => {
       guardian,
       classId: classId || null,
       password: hashed,
+      tempPassword,
+      passwordResetRequired: true,
       role: 'student',
     });
 
-    // ✅ THEN UPDATE CLASS
+    // UPDATE CLASS
     if (classId) {
       await Class.findByIdAndUpdate(classId, {
         $addToSet: { students: student._id },
@@ -326,6 +329,27 @@ router.put('/students/:id', verifyToken, requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'Failed to update student' });
   }
 });
+
+router.put('/students/:id/reset-password', verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const tempPassword = crypto.randomBytes(5).toString('hex')
+      const hashed = await bcrypt.hash(tempPassword, 10)
+
+      await Student.findByIdAndUpdate(
+        req.params.id,
+        {
+          password: hashed,
+          tempPassword,
+          passwordResetRequired: true
+        }
+      )
+
+      res.json({ tempPassword })
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({ message: 'Failed to reset password' })
+    }
+  });
 
 /* ===============================
    SUBJECTS
