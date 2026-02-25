@@ -523,6 +523,25 @@ router.get('/classes', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
+//get classes by id
+router.get('/classes/:id', verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const classDoc = await Class.findById(req.params.id)
+        .populate('subjectMappings.subjectId')
+        .populate('subjectMappings.teacherId')
+
+      if (!classDoc) {
+        return res.status(404).json({ message: 'Class not found' })
+      }
+
+      res.json(classDoc)
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({ message: 'Failed to fetch class' })
+    }
+  }
+)
+
 // Create class
 router.post('/classes', verifyToken, requireAdmin, async (req, res) => {
   try {

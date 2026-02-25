@@ -8,8 +8,6 @@ const timetableSchema = new mongoose.Schema(
       unique: true
     },
 
-    subjectId: ObjectId,
-
     grid: {
       type: Object,  
       required: true
