@@ -628,17 +628,46 @@ router.post(
    TIMETABLE
 ================================ */
 
-// Get timetable
+// Get timetable for one class
 router.get('/timetable', verifyToken, requireAdmin, async (req, res) => {
-  const timetable = await Timetable.find();
-  res.json(timetable);
-});
+  try {
+    const { className } = req.query
+    if (!className) return res.status(400).json({ message: 'className required' })
 
-// Create timetable entry
+    const timetable = await Timetable.findOne({ className })
+
+    if (!timetable) {
+      return res.json({ grid: null })
+    }
+
+    res.json({ grid: timetable.grid })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Failed to fetch timetable' })
+  }
+})
+
+// Save full grid
 router.post('/timetable', verifyToken, requireAdmin, async (req, res) => {
-  const entry = await Timetable.create(req.body);
-  res.status(201).json(entry);
-});
+  try {
+    const { className, grid } = req.body
+
+    if (!className || !grid) {
+      return res.status(400).json({ message: 'Missing data' })
+    }
+
+    const updated = await Timetable.findOneAndUpdate(
+      { className },
+      { grid },
+      { upsert: true, new: true }
+    )
+
+    res.json({ message: 'Saved', grid: updated.grid })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Failed to save timetable' })
+  }
+})
 
 /* ===============================
    RESULTS / SCORES
