@@ -96,6 +96,7 @@ router.get('/teachers', verifyToken, requireAdmin, async (req, res) => {
         name: t.name,
         email: t.email,
         phone: t.phone,
+        tempPassword: t.tempPassword || null,
         classTeacherOf: t.classTeacherOf || null
       }))
     );
@@ -175,7 +176,7 @@ router.put('/teachers/:id', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-router.put('/teachers/:id/reset-password', async (req, res) => {
+router.put('/teachers/:id/reset-password', verifyToken, requireAdmin, async (req, res) => {
   try {
     const tempPassword = crypto.randomBytes(4).toString('hex')
     const hashed = await bcrypt.hash(tempPassword, 10)
