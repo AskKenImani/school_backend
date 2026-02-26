@@ -650,10 +650,10 @@ router.post(
 // Get timetable for one class
 router.get('/timetable', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { className } = req.query
-    if (!className) return res.status(400).json({ message: 'className required' })
+    const { classId } = req.query
+    if (!classId) return res.status(400).json({ message: 'classId required' })
 
-    const timetable = await Timetable.findOne({ className })
+    const timetable = await Timetable.findOne({ classId })
 
     if (!timetable) {
       return res.json({ grid: null })
@@ -669,14 +669,14 @@ router.get('/timetable', verifyToken, requireAdmin, async (req, res) => {
 // Save full grid
 router.post('/timetable', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { className, grid } = req.body
+    const { classId, grid } = req.body
 
-    if (!className || !grid) {
+    if (!classId || !grid) {
       return res.status(400).json({ message: 'Missing data' })
     }
 
     const updated = await Timetable.findOneAndUpdate(
-      { className },
+      { classId },
       { grid },
       { upsert: true, new: true }
     )
@@ -695,7 +695,7 @@ router.post('/timetable', verifyToken, requireAdmin, async (req, res) => {
 // Get all results (Admin only)
 router.get('/results', verifyToken, requireAdmin, async (req, res) => {
   const results = await Result.find()
-    .populate('studentId', 'name className')
+    .populate('studentId', 'name classId')
     .populate('teacherId', 'name');
   res.json(results);
 });
