@@ -686,6 +686,15 @@ router.post('/timetable/auto-generate', verifyToken, requireAdmin, async (req, r
         return res.status(404).json({ message: 'Class not found' });
       }
 
+      if (
+        !classDoc.subjectMappings ||
+        classDoc.subjectMappings.length === 0
+      ) {
+        return res.status(400).json({
+          message: 'No subjects assigned to this class'
+        });
+      }
+
       const grid = autoGenerateGridForClass(classDoc);
 
       const saved = await Timetable.findOneAndUpdate(
@@ -697,7 +706,7 @@ router.post('/timetable/auto-generate', verifyToken, requireAdmin, async (req, r
       res.json(saved);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ message: 'Auto generation failed' });
+      res.status(500).json({ message: err.message });
     }
   });
 
