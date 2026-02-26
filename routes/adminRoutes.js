@@ -16,6 +16,7 @@ const Timetable = require('../models/Timetable');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const autoGenerateGridForClass = require('../utils/autoGenerateGridForClass')
 
 const router = express.Router();
 
@@ -665,6 +666,37 @@ router.get('/timetable', verifyToken, requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch timetable' })
   }
 })
+
+/* ===============================
+   AUTO GENERATE TIMETABLE
+================================ */
+router.post('/timetable/auto-generate', verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { classId } = req.body
+
+      if (!classId) {
+        return res.status(400).json({
+          message: 'classId required'
+        })
+      }
+
+      const grid =
+        await autoGenerateGridForClass(classId)
+
+      await Timetable.findOneAndUpdate(
+        { classId },
+        { grid },
+        { upsert: true, new: true }
+      )
+
+      res.json({ grid })
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({
+        message: err.message || 'Auto generation failed'
+      })
+    }
+  })
 
 // Save full grid
 router.post('/timetable', verifyToken, requireAdmin, async (req, res) => {
