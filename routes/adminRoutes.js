@@ -672,31 +672,34 @@ router.get('/timetable', verifyToken, requireAdmin, async (req, res) => {
 ================================ */
 router.post('/timetable/auto-generate', verifyToken, requireAdmin, async (req, res) => {
     try {
-      const { classId } = req.body
+      const { classId } = req.body;
 
       if (!classId) {
-        return res.status(400).json({
-          message: 'classId required'
-        })
+        return res.status(400).json({ message: 'classId required' });
       }
 
-      const grid =
-        await autoGenerateGridForClass(classId)
+      const classDoc = await Class.findById(classId)
+        .populate('subjectMappings.subjectId')
+        .populate('subjectMappings.teacherId');
 
-      await Timetable.findOneAndUpdate(
-        { classId },
-        { grid },
+      if (!classDoc) {
+        return res.status(404).json({ message: 'Class not found' });
+      }
+
+      const grid = autoGenerateGridForClass(classDoc);
+
+      const saved = await Timetable.findOneAndUpdate(
+        { classId },      
+        { classId, grid }, 
         { upsert: true, new: true }
-      )
+      );
 
-      res.json({ grid })
+      res.json(saved);
     } catch (err) {
-      console.error(err)
-      res.status(500).json({
-        message: err.message || 'Auto generation failed'
-      })
+      console.error(err);
+      res.status(500).json({ message: 'Auto generation failed' });
     }
-  })
+  });
 
 // Save full grid
 router.post('/timetable', verifyToken, requireAdmin, async (req, res) => {
