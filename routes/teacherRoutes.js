@@ -88,7 +88,7 @@ router.post('/attendance', verifyToken, roleAuth(['teacher']), async (req, res) 
 // ==============================
 // SUBMIT ATTENDANCE
 // ==============================
-router.post('/', verifyToken, requireTeacher, async (req, res) => {
+router.post('/', verifyToken, roleAuth(['teacher']), async (req, res) => {
     try {
       const { classId, subjectId, date, records } = req.body
       const teacherId = req.user.id
@@ -148,12 +148,7 @@ router.post('/', verifyToken, requireTeacher, async (req, res) => {
 // ---------------------
 // Upload note (file or text)
 // ---------------------
-router.post(
-  '/upload-note',
-  verifyToken,
-  roleAuth(['teacher']),
-  upload.single('noteFile'),
-  async (req, res) => {
+router.post('/upload-note', verifyToken, roleAuth(['teacher']), upload.single('noteFile'), async (req, res) => {
     try {
       const { title, noteText } = req.body;
       let fileUrl = null;
