@@ -185,6 +185,36 @@ router.post('/attendance', verifyToken, roleAuth(['teacher']), async (req, res) 
 //   });
 
 // ---------------------
+// GET Attendance for class + date
+// ---------------------
+
+router.get('/attendance/:classId/:date', verifyToken, roleAuth(['teacher']), async (req, res) => {
+    try {
+      const { classId, date } = req.params;
+      const teacherId = req.user.id;
+
+      if (!mongoose.Types.ObjectId.isValid(classId)) {
+        return res.status(400).json({ message: 'Invalid class ID' });
+      }
+
+      const attendance = await Attendance.findOne({
+        classId,
+        teacherId,
+        date
+      });
+
+      if (!attendance) {
+        return res.json({ records: [] });
+      }
+
+      res.json(attendance);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error' });
+    }
+  });
+
+// ---------------------
 // Upload note (file or text)
 // ---------------------
 router.post('/upload-note', verifyToken, roleAuth(['teacher']), upload.single('noteFile'), async (req, res) => {
