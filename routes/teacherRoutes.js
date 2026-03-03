@@ -9,6 +9,7 @@ const path = require('path');
 const verifyToken = require('../middleware/auth');
 const roleAuth = require('../middleware/roleAuth');
 const Timetable = require('../models/Timetable');
+const Class = require('../models/Class')
 const Student = require('../models/Student');
 
 const router = express.Router();
@@ -31,11 +32,29 @@ const upload = multer({ storage });
 // ---------------------
 router.get('/profile', verifyToken, roleAuth(['teacher']), async (req, res) => {
   try {
-    const teacher = await Teacher.findById(req.user.id).select('-password');
-    res.json(teacher);
+    const teacher = await Teacher.findById(req.user.id)
+      .select('-password')
+      .populate('classTeacherOf', 'name level arm');
+
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    res.json({
+      _id: teacher._id,
+      name: teacher.name,
+      email: teacher.email,
+      classTeacherOf: teacher.classTeacherOf
+        ? {
+            _id: teacher.classTeacherOf._id,
+            name: teacher.classTeacherOf.name
+          }
+        : null
+    });
+
   } catch (error) {
-    console.error('Error fetching teacher profile:', error);
-    res.status(500).json({ message: 'Server Error', error });
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
@@ -44,15 +63,15 @@ router.get('/profile', verifyToken, roleAuth(['teacher']), async (req, res) => {
 // ---------------------
 router.post('/attendance', verifyToken, roleAuth(['teacher']), async (req, res) => {
   try {
-    const { className, date, records } = req.body;
-    if (!className || !date || !records) {
+    const { classId, date, records } = req.body;
+    if (!classId || !date || !records) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
     // Check if attendance exists for class+date
-    let attendance = await Attendance.findOne({ className, date });
+    let attendance = await Attendance.findOne({ classId, date });
     if (!attendance) {
-      attendance = new Attendance({ className, date, markedBy: req.user.id, records });
+      attendance = new Attendance({ classId, date, markedBy: req.user.id, records });
     } else {
       attendance.records = records;
       attendance.markedBy = req.user.id;
@@ -65,6 +84,66 @@ router.post('/attendance', verifyToken, roleAuth(['teacher']), async (req, res) 
     res.status(500).json({ message: 'Server Error', error });
   }
 });
+
+// ==============================
+// SUBMIT ATTENDANCE
+// ==============================
+router.post('/', verifyToken, requireTeacher, async (req, res) => {
+    try {
+      const { classId, subjectId, date, records } = req.body
+      const teacherId = req.user.id
+
+      if (!classId || !subjectId || !date || !records) {
+        return res.status(400).json({ message: 'Missing fields' })
+      }
+
+      // 🚀 LOCK AFTER 24 HOURS
+      const attendanceDate = new Date(date)
+      const now = new Date()
+
+      const diffHours = (now - attendanceDate) / (1000 * 60 * 60)
+
+      if (diffHours > 24) {
+        return res
+          .status(400)
+          .json({ message: 'Attendance locked after 24 hours' })
+      }
+
+      // 🚀 PREVENT DUPLICATE
+      const existing = await Attendance.findOne({
+        classId,
+        subjectId,
+        teacherId,
+        date
+      })
+
+      if (existing) {
+        return res
+          .status(400)
+          .json({ message: 'Attendance already submitted' })
+      }
+
+      const newAttendance = await Attendance.create({
+        classId,
+        subjectId,
+        teacherId,
+        date,
+        records
+      })
+
+      res.status(201).json(newAttendance)
+    } catch (err) {
+      console.error('Attendance error:', err)
+
+      if (err.code === 11000) {
+        return res
+          .status(400)
+          .json({ message: 'Duplicate attendance not allowed' })
+      }
+
+      res.status(500).json({ message: 'Failed to submit attendance' })
+    }
+  });
 
 // ---------------------
 // Upload note (file or text)
@@ -100,11 +179,7 @@ router.post(
 // ---------------------
 // Save text note only
 // ---------------------
-router.post(
-  '/save-text-note',
-  verifyToken,
-  roleAuth(['teacher']),
-  async (req, res) => {
+router.post('/save-text-note', verifyToken, roleAuth(['teacher']), async (req, res) => {
     try {
       const { title, note } = req.body;
 
@@ -127,11 +202,7 @@ router.post(
 // ---------------------
 // Get notes for the logged-in teacher
 // ---------------------
-router.get(
-  '/notes/:teacherId',
-  verifyToken,
-  roleAuth(['teacher']),
-  async (req, res) => {
+router.get('/notes/:teacherId', verifyToken, roleAuth(['teacher']), async (req, res) => {
     try {
       const teacherId = req.params.teacherId;
       if (!mongoose.Types.ObjectId.isValid(teacherId)) {
@@ -150,47 +221,67 @@ router.get(
 // ---------------------
 // Teacher timetable
 // ---------------------
-router.get(
-  '/timetable',
-  verifyToken,
-  roleAuth(['teacher']),
-  async (req, res) => {
+router.get('/timetable/:teacherId', verifyToken, requireTeacher, async (req, res) => {
     try {
-      const timetable = await Timetable.find({ teacherId: req.user.id });
-      // Transform timetable into { day: { period: {...} } } structure for frontend
-      const grid = {};
-      timetable.forEach((t) => {
-        if (!grid[t.day]) grid[t.day] = {};
-        grid[t.day][t.period] = {
-          className: t.className,
-          subjectId: t.subjectId.toString(),
-        };
-      });
-      res.json(grid);
-    } catch (error) {
-      console.error('Error fetching teacher timetable:', error);
-      res.status(500).json({ message: 'Server Error', error });
+      const { teacherId } = req.params
+
+      // Get all classes where teacher is mapped
+      const classes = await Class.find({
+        'subjectMappings.teacherId': teacherId
+      }).populate('subjectMappings.subjectId')
+
+      if (!classes.length) {
+        return res.json([])
+      }
+
+      const result = []
+
+      for (const klass of classes) {
+        const timetable = await Timetable.findOne({
+          className: klass.name
+        })
+
+        if (!timetable) continue
+
+        const filteredGrid = {}
+
+        Object.keys(timetable.grid || {}).forEach(day => {
+          filteredGrid[day] = timetable.grid[day].filter(period =>
+            period.teacherId?.toString() === teacherId
+          )
+        })
+
+        result.push({
+          className: klass.name,
+          timetable: filteredGrid
+        })
+      }
+
+      res.json(result)
+    } catch (err) {
+      console.error('Teacher timetable error:', err)
+      res.status(500).json({ message: 'Failed to fetch timetable' })
     }
-  }
-);
+  });
 
 // ---------------------
 // Fetch class students for a teacher
 // ---------------------
-router.get(
-  '/class-students/:className',
-  verifyToken,
-  roleAuth(['teacher']),
-  async (req, res) => {
+router.get('/class-students/:classId', verifyToken, roleAuth(['teacher']), async (req, res) => {
     try {
-      const { className } = req.params;
-      const students = await Student.find({ className }).select('-password');
+      const { classId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(classId)) {
+        return res.status(400).json({ message: 'Invalid class ID' });
+      }
+
+      const students = await Student.find({ classId }).select('-password');
+
       res.json(students);
     } catch (error) {
-      console.error('Error fetching class students:', error);
-      res.status(500).json({ message: 'Server Error', error });
+      console.error(error);
+      res.status(500).json({ message: 'Server Error' });
     }
-  }
-);
+  });
 
 module.exports = router;
