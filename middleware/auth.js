@@ -11,7 +11,7 @@ const verifyToken = (req, res, next) => {
   try {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;  // Attach user data to request
+    req.user = {id: decoded.userId, role: decoded.role };  // Attach user data to request
     next();  // Proceed to the next middleware or route handler
   } catch (err) {
     return res.status(401).json({ message: 'Token is not valid' });
