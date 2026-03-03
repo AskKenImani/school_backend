@@ -44,6 +44,7 @@ router.get('/profile', verifyToken, roleAuth(['teacher']), async (req, res) => {
       _id: teacher._id,
       name: teacher.name,
       email: teacher.email,
+      role: req.user.role,
       classTeacherOf: teacher.classTeacherOf
         ? {
             _id: teacher.classTeacherOf._id,
@@ -64,86 +65,124 @@ router.get('/profile', verifyToken, roleAuth(['teacher']), async (req, res) => {
 router.post('/attendance', verifyToken, roleAuth(['teacher']), async (req, res) => {
   try {
     const { classId, date, records } = req.body;
+    const teacherId = req.user.id;
+
     if (!classId || !date || !records) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Check if attendance exists for class+date
-    let attendance = await Attendance.findOne({ classId, date });
-    if (!attendance) {
-      attendance = new Attendance({ classId, date, markedBy: req.user.id, records });
-    } else {
-      attendance.records = records;
-      attendance.markedBy = req.user.id;
+    const classDoc = await Class.findById(classId);
+
+    if (!classDoc) {
+      return res.status(404).json({ message: 'Class not found' });
     }
 
-    await attendance.save();
-    res.json({ message: 'Attendance saved successfully', attendance });
+    // 🔥 CHECK IF TEACHER IS CLASS TEACHER
+    if (!classDoc.teacherId || classDoc.teacherId.toString() !== teacherId) {
+      return res.status(403).json({
+        message: 'You are not assigned as a class teacher'
+      });
+    }
+
+    // 🔥 LOCK AFTER 24 HOURS
+    const attendanceDate = new Date(date);
+    const now = new Date();
+    const diffHours = (now - attendanceDate) / (1000 * 60 * 60);
+
+    if (diffHours > 24) {
+      return res.status(400).json({
+        message: 'Attendance locked after 24 hours'
+      });
+    }
+
+    const existing = await Attendance.findOne({
+      classId,
+      teacherId,
+      date
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        message: 'Attendance already submitted'
+      });
+    }
+
+    const attendance = await Attendance.create({
+      classId,
+      teacherId,
+      date,
+      records
+    });
+
+    res.status(201).json({
+      message: 'Attendance saved successfully',
+      attendance
+    });
+
   } catch (error) {
-    console.error('Error saving attendance:', error);
-    res.status(500).json({ message: 'Server Error', error });
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 });
-
 // ==============================
 // SUBMIT ATTENDANCE
 // ==============================
-router.post('/', verifyToken, roleAuth(['teacher']), async (req, res) => {
-    try {
-      const { classId, subjectId, date, records } = req.body
-      const teacherId = req.user.id
+// router.post('/', verifyToken, roleAuth(['teacher']), async (req, res) => {
+//     try {
+//       const { classId, subjectId, date, records } = req.body
+//       const teacherId = req.user.id
 
-      if (!classId || !subjectId || !date || !records) {
-        return res.status(400).json({ message: 'Missing fields' })
-      }
+//       if (!classId || !subjectId || !date || !records) {
+//         return res.status(400).json({ message: 'Missing fields' })
+//       }
 
-      // 🚀 LOCK AFTER 24 HOURS
-      const attendanceDate = new Date(date)
-      const now = new Date()
+//       // 🚀 LOCK AFTER 24 HOURS
+//       const attendanceDate = new Date(date)
+//       const now = new Date()
 
-      const diffHours = (now - attendanceDate) / (1000 * 60 * 60)
+//       const diffHours = (now - attendanceDate) / (1000 * 60 * 60)
 
-      if (diffHours > 24) {
-        return res
-          .status(400)
-          .json({ message: 'Attendance locked after 24 hours' })
-      }
+//       if (diffHours > 24) {
+//         return res
+//           .status(400)
+//           .json({ message: 'Attendance locked after 24 hours' })
+//       }
 
-      // 🚀 PREVENT DUPLICATE
-      const existing = await Attendance.findOne({
-        classId,
-        subjectId,
-        teacherId,
-        date
-      })
+//       // 🚀 PREVENT DUPLICATE
+//       const existing = await Attendance.findOne({
+//         classId,
+//         subjectId,
+//         teacherId,
+//         date
+//       })
 
-      if (existing) {
-        return res
-          .status(400)
-          .json({ message: 'Attendance already submitted' })
-      }
+//       if (existing) {
+//         return res
+//           .status(400)
+//           .json({ message: 'Attendance already submitted' })
+//       }
 
-      const newAttendance = await Attendance.create({
-        classId,
-        subjectId,
-        teacherId,
-        date,
-        records
-      })
+//       const newAttendance = await Attendance.create({
+//         classId,
+//         subjectId,
+//         teacherId,
+//         date,
+//         records
+//       })
 
-      res.status(201).json(newAttendance)
-    } catch (err) {
-      console.error('Attendance error:', err)
+//       res.status(201).json(newAttendance)
+//     } catch (err) {
+//       console.error('Attendance error:', err)
 
-      if (err.code === 11000) {
-        return res
-          .status(400)
-          .json({ message: 'Duplicate attendance not allowed' })
-      }
+//       if (err.code === 11000) {
+//         return res
+//           .status(400)
+//           .json({ message: 'Duplicate attendance not allowed' })
+//       }
 
-      res.status(500).json({ message: 'Failed to submit attendance' })
-    }
-  });
+//       res.status(500).json({ message: 'Failed to submit attendance' })
+//     }
+//   });
 
 // ---------------------
 // Upload note (file or text)

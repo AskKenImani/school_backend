@@ -1,17 +1,30 @@
 const mongoose = require('mongoose');
 
-const attendanceSchema = new mongoose.Schema({
-  date: { type: Date, default: Date.now },
-  subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
-  studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
-  markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true,},
-  records: [
+const attendanceSchema = new mongoose.Schema(
+  {
+    classId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Class',
+      required: true
+    },
+
+    teacherId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Teacher',
+      required: true
+    },
+
+    date: {
+      type: String,
+      required: true
+    },
+
+    records: [
       {
         studentId: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User'
+          ref: 'Student',
+          required: true
         },
         status: {
           type: String,
@@ -19,15 +32,15 @@ const attendanceSchema = new mongoose.Schema({
           required: true
         }
       }
-    ],
-  status: { type: String, enum: ['Present', 'Absent'], required: true },
-}, { timestamps: true });
+    ]
+  },
+  { timestamps: true }
+);
 
+// Prevent duplicates
 attendanceSchema.index(
-  { classId: 1, subjectId: 1, teacherId: 1, date: 1 },
+  { classId: 1, teacherId: 1, date: 1 },
   { unique: true }
 );
 
-const Attendance = mongoose.model('Attendance', attendanceSchema);
-
-module.exports = Attendance;
+module.exports = mongoose.model('Attendance', attendanceSchema);
