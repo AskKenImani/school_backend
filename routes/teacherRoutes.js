@@ -216,7 +216,7 @@ router.get('/notes/:teacherId', verifyToken, roleAuth(['teacher']), async (req, 
 // ---------------------
 // Teacher timetable
 // ---------------------
-router.get('/timetable/:teacherId', verifyToken, requireTeacher, async (req, res) => {
+router.get('/timetable/:teacherId', verifyToken, roleAuth(['teacher']), async (req, res) => {
     try {
       const { teacherId } = req.params
 
