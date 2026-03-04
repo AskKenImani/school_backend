@@ -613,19 +613,21 @@ router.put('/classes/:id', verifyToken, requireAdmin, async (req, res) => {
 
 // Get attendance
 router.get('/attendance', verifyToken, requireAdmin, async (req, res) => {
-  const attendance = await Attendance.find()
-    .populate('studentId', 'name')
-    .populate('classId', 'name')
-    .populate('markedBy', 'name');
-  res.json(attendance);
+  try {
+    const attendance = await Attendance.find()
+      .populate('classId', 'name')
+      .populate('teacherId', 'name')
+      .populate('records.studentId', 'name admissionNo');
+
+    res.json(attendance);
+  } catch (err) {
+    console.error('Admin attendance fetch error:', err);
+    res.status(500).json({ message: 'Failed to fetch attendance' });
+  }
 });
 
 // Create attendance (Teacher OR Admin)
-router.post(
-  '/attendance',
-  verifyToken,
-  roleAuth(['admin', 'teacher']),
-  async (req, res) => {
+router.post('/attendance', verifyToken, roleAuth(['admin', 'teacher']), async (req, res) => {
     try {
       const { classId, studentId, status } = req.body;
 
@@ -633,7 +635,7 @@ router.post(
         classId,
         studentId,
         status,
-        markedBy: req.user.id, // 🔥 track teacher/admin
+        markedBy: req.user.id,
       });
 
       res.status(201).json(attendance);
