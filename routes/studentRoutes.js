@@ -14,14 +14,51 @@ const router = express.Router();
 ================================ */
 router.get('/profile', verifyToken, async (req, res) => {
   try {
-    const student = await Student.findById(req.user.id).select('-password');
-    if (!student) return res.status(404).json({ message: 'Student not found' });
-    res.json(student);
+
+    const student = await Student.findById(req.user.id)
+      .populate('classId', 'name')
+      .select('-password')
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' })
+    }
+
+    res.json({
+      ...student._doc,
+      className: student.classId ? student.classId.name : 'Not Assigned'
+    })
+
   } catch (error) {
-    console.error('Error fetching student profile:', error);
-    res.status(500).json({ message: 'Server Error', error });
+    console.error('Error fetching student profile:', error)
+    res.status(500).json({ message: 'Server Error', error })
   }
-});
+})
+
+/* ===============================
+   GET NOTES FOR STUDENT CLASS
+================================ */
+router.get('/notes', verifyToken, async (req, res) => {
+  try {
+
+    const student = await Student.findById(req.user.id)
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' })
+    }
+
+    const Note = require('../models/Note')
+
+    const notes = await Note.find({
+      classId: student.classId
+    }).populate('subjectId', 'name')
+
+    res.json({ notes })
+
+  } catch (error) {
+    console.error('Error fetching notes:', error)
+    res.status(500).json({ message: 'Server Error' })
+  }
+})
 
 /* ===============================
    GET STUDENT ATTENDANCE
@@ -55,16 +92,24 @@ router.get('/conduct', verifyToken, async (req, res) => {
 ================================ */
 router.get('/timetable', verifyToken, async (req, res) => {
   try {
-    const student = await Student.findById(req.user.id);
-    if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    const timetable = await Timetable.find({ className: student.className });
-    res.json(timetable);
+    const student = await Student.findById(req.user.id)
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' })
+    }
+
+    const timetable = await Timetable.findOne({
+      classId: student.classId
+    })
+
+    res.json(timetable)
+
   } catch (error) {
-    console.error('Error fetching timetable:', error);
-    res.status(500).json({ message: 'Server Error', error });
+    console.error('Error fetching timetable:', error)
+    res.status(500).json({ message: 'Server Error', error })
   }
-});
+})
 
 /* ===============================
    GET STUDENT RESULTS
