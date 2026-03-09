@@ -40,17 +40,22 @@ router.get('/profile', verifyToken, async (req, res) => {
 router.get('/notes', verifyToken, async (req, res) => {
   try {
 
+    const Note = require('../models/TeacherNote')
+
     const student = await Student.findById(req.user.id)
 
     if (!student) {
       return res.status(404).json({ message: 'Student not found' })
     }
 
-    const Note = require('../models/Note')
+    if (!student.classId) {
+      return res.json({ notes: [] })
+    }
 
     const notes = await Note.find({
       classId: student.classId
     }).populate('subjectId', 'name')
+      .sort({ createdAt: -1 })
 
     res.json({ notes })
 
@@ -99,15 +104,50 @@ router.get('/timetable', verifyToken, async (req, res) => {
       return res.status(404).json({ message: 'Student not found' })
     }
 
+    if (!student.classId) {
+      return res.json({})
+    }
+
     const timetable = await Timetable.findOne({
       classId: student.classId
     })
+    .populate('classId')
 
-    res.json(timetable)
+    if (!timetable) {
+      return res.json({})
+    }
+
+    const Subject = require('../models/Subject')
+
+    const grid = timetable.grid || {}
+    const output = {}
+
+    for (const day of Object.keys(grid)) {
+      output[day] = {}
+
+      for (const period of Object.keys(grid[day])) {
+        const cell = grid[day][period]
+
+        if (!cell?.subjectId) {
+          output[day][period] = {}
+          continue
+        }
+
+        const subject = await Subject.findById(cell.subjectId)
+
+        output[day][period] = {
+          subject: subject?.name || ''
+        }
+
+      }
+
+    }
+
+    res.json(output)
 
   } catch (error) {
     console.error('Error fetching timetable:', error)
-    res.status(500).json({ message: 'Server Error', error })
+    res.status(500).json({ message: 'Failed to fetch timetable' })
   }
 })
 
