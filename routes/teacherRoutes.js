@@ -227,47 +227,75 @@ router.get('/notes/:teacherId', verifyToken, roleAuth(['teacher']), async (req, 
 // Teacher timetable
 // ---------------------
 router.get('/timetable/:teacherId', verifyToken, roleAuth(['teacher']), async (req, res) => {
-    try {
-      const { teacherId } = req.params
+  try {
+    const { teacherId } = req.params
 
-      // Get all classes where teacher is mapped
-      const classes = await Class.find({
-        'subjectMappings.teacherId': teacherId
-      }).populate('subjectMappings.subjectId')
-
-      if (!classes.length) {
-        return res.json([])
-      }
-
-      const result = []
-
-      for (const klass of classes) {
-        const timetable = await Timetable.findOne({
-          className: klass.name
-        })
-
-        if (!timetable) continue
-
-        const filteredGrid = {}
-
-        Object.keys(timetable.grid || {}).forEach(day => {
-          filteredGrid[day] = timetable.grid[day].filter(period =>
-            period.teacherId?.toString() === teacherId
-          )
-        })
-
-        result.push({
-          className: klass.name,
-          timetable: filteredGrid
-        })
-      }
-
-      res.json(result)
-    } catch (err) {
-      console.error('Teacher timetable error:', err)
-      res.status(500).json({ message: 'Failed to fetch timetable' })
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      return res.status(400).json({ message: 'Invalid teacher id' })
     }
-  });
+
+    // find classes where teacher teaches
+    const classes = await Class.find({
+      'subjectMappings.teacherId': teacherId
+    })
+      .populate('subjectMappings.subjectId')
+      .select('name subjectMappings')
+
+    if (!classes.length) {
+      return res.json({})
+    }
+
+    const teacherGrid = {}
+
+    for (const klass of classes) {
+
+      const timetable = await Timetable.findOne({
+        classId: klass._id
+      })
+
+      if (!timetable) continue
+
+      const grid = timetable.grid || {}
+
+      for (const day of Object.keys(grid)) {
+
+        if (!teacherGrid[day]) teacherGrid[day] = {}
+
+        for (const period of Object.keys(grid[day])) {
+
+          const cell = grid[day][period]
+
+          if (!cell?.subjectId) continue
+
+          const mapping = klass.subjectMappings.find(
+            m => String(m.subjectId._id) === String(cell.subjectId)
+          )
+
+          if (!mapping) continue
+
+          if (String(mapping.teacherId) === String(teacherId)) {
+
+            teacherGrid[day][period] = {
+              subjectId: mapping.subjectId._id,
+              subjectName: mapping.subjectId.name,
+              className: klass.name
+            }
+
+          }
+
+        }
+
+      }
+
+    }
+
+    res.json(teacherGrid)
+
+  } catch (err) {
+    console.error('Teacher timetable error:', err)
+    res.status(500).json({ message: 'Failed to fetch timetable' })
+  }
+})
 
 // ---------------------
 // Fetch class students for a teacher
