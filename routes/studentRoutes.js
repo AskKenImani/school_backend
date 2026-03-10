@@ -99,6 +99,13 @@ router.get('/timetable', verifyToken, async (req, res) => {
   try {
 
     const student = await Student.findById(req.user.id)
+      .populate({
+        path: 'classId',
+        populate: {
+          path: 'subjectMappings.teacherId',
+          select: 'name'
+        }
+      })
 
     if (!student) {
       return res.status(404).json({ message: 'Student not found' })
@@ -135,8 +142,15 @@ router.get('/timetable', verifyToken, async (req, res) => {
 
         const subject = await Subject.findById(cell.subjectId)
 
+        const mapping = student.classId.subjectMappings.find(
+          m => String(m.subjectId) === String(cell.subjectId)
+        )
+
+        const teacherName = mapping?.teacherId?.name || ''
+
         output[day][period] = {
-          subject: subject?.name || ''
+          subject: subject?.name || '',
+          teacher: teacherName
         }
 
       }
