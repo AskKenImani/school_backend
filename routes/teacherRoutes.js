@@ -298,6 +298,126 @@ router.get('/timetable/:teacherId', verifyToken, roleAuth(['teacher']), async (r
 })
 
 // ---------------------
+// Classes taught by teacher
+// ---------------------
+router.get('/classes', verifyToken, roleAuth(['teacher']), async (req, res) => {
+  try {
+
+    const teacherId = req.user.id
+
+    const classes = await Class.find({
+      'subjectMappings.teacherId': teacherId
+    }).select('name subjectMappings')
+
+    res.json(classes)
+
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Failed to fetch classes' })
+  }
+})
+
+// ---------------------
+// Subjects taught by teacher
+// ---------------------
+router.get('/subjects', verifyToken, roleAuth(['teacher']), async (req, res) => {
+  try {
+
+    const teacherId = req.user.id
+
+    const classes = await Class.find({
+      'subjectMappings.teacherId': teacherId
+    }).populate('subjectMappings.subjectId')
+
+    const subjectsMap = {}
+
+    classes.forEach(cls => {
+
+      cls.subjectMappings.forEach(map => {
+
+        if (String(map.teacherId) === String(teacherId)) {
+          subjectsMap[map.subjectId._id] = map.subjectId
+        }
+
+      })
+
+    })
+
+    const subjects = Object.values(subjectsMap)
+
+    res.json(subjects)
+
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Failed to fetch subjects' })
+  }
+})
+
+// ---------------------
+// Save student scores
+// ---------------------
+router.post('/results', verifyToken, roleAuth(['teacher']), async (req, res) => {
+  try {
+
+    const teacherId = req.user.id
+    const results = req.body
+
+    if (!Array.isArray(results)) {
+      return res.status(400).json({ message: 'Invalid payload' })
+    }
+
+    const saved = []
+
+    for (const r of results) {
+
+      const student = await Student.findById(r.studentId)
+
+      if (!student) continue
+
+      // verify teacher teaches this subject in this class
+      const classDoc = await Class.findById(student.classId)
+
+      const mapping = classDoc.subjectMappings.find(m =>
+        String(m.teacherId) === String(teacherId) &&
+        String(m.subjectId) === String(r.subject)
+      )
+
+      if (!mapping) {
+        return res.status(403).json({
+          message: 'You cannot score this subject'
+        })
+      }
+
+      const result = await Result.findOneAndUpdate(
+        {
+          studentId: r.studentId,
+          subject: r.subject,
+          term: r.term,
+          session: r.session
+        },
+        {
+          teacherId,
+          score: r.score
+        },
+        { new: true, upsert: true }
+      )
+
+      saved.push(result)
+
+    }
+
+    res.json({
+      message: 'Scores saved successfully',
+      results: saved
+    })
+
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Failed to save scores' })
+  }
+})
+
+// ---------------------
 // Fetch class students for a teacher
 // ---------------------
 router.get('/class-students/:classId', verifyToken, roleAuth(['teacher']), async (req, res) => {
