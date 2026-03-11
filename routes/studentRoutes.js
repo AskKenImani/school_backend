@@ -83,9 +83,21 @@ router.get('/attendance', verifyToken, async (req, res) => {
 ================================ */
 router.get('/conduct', verifyToken, async (req, res) => {
   try {
-    const conduct = await Conduct.findOne({ studentId: req.user.id });
-    if (!conduct) return res.status(404).json({ message: 'Conduct not found' });
+
+    let conduct = await Conduct.findOne({ studentId: req.user.id });
+
+    if (!conduct) {
+      conduct = {
+        punctuality: 'Not set',
+        neatness: 'Not set',
+        obedience: 'Not set',
+        teamwork: 'Not set',
+        teacherComment: ''
+      };
+    }
+
     res.json(conduct);
+
   } catch (error) {
     console.error('Error fetching conduct:', error);
     res.status(500).json({ message: 'Server Error', error });
@@ -116,7 +128,7 @@ router.get('/timetable', verifyToken, async (req, res) => {
     }
 
     const timetable = await Timetable.findOne({
-      classId: student.classId
+      classId: student.classId._id
     })
     .populate('classId')
 
@@ -175,10 +187,22 @@ router.get('/results/:studentId', verifyToken, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const results = await Result.find({ studentId: req.params.studentId });
+    const { term, session } = req.query;
+
+    const results = await Result.find({
+      studentId: req.params.studentId,
+      ...(term && { term }),
+      ...(session && { session })
+    });
 
     if (!results || results.length === 0) {
-      return res.status(404).json({ message: 'No results found' });
+      return res.json({
+        totalScore: 0,
+        maxScore: 0,
+        average: 0,
+        grades: {},
+        scores: []
+      });
     }
 
     // Calculate total score, max score, average
