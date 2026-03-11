@@ -802,15 +802,11 @@ router.put(
 );
 
 // Get results for one student (Admin, Teacher, or Parent)
-router.get(
-  '/results/student/:studentId',
-  verifyToken,
-  roleAuth(['admin', 'teacher', 'student']),
-  async (req, res) => {
+router.get('/results/student/:studentId', verifyToken, roleAuth(['admin', 'teacher', 'student']), async (req, res) => {
     try {
       const results = await Result.find({
         studentId: req.params.studentId,
-      });
+      }).populate('subject','name');
 
       res.json(results);
     } catch (error) {
