@@ -17,7 +17,7 @@ const teacherNoteSchema = new mongoose.Schema({
   },
   fileUrl: {
     type: String,
-    required: true,
+    default: null,
   },
   uploadedAt: {
     type: Date,
