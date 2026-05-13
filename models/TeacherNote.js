@@ -13,7 +13,12 @@ const teacherNoteSchema = new mongoose.Schema({
     ref: 'Teacher',
     required: true,
   },
-  
+
+  subject: {
+    type: String,
+    required: true,
+  },
+
   title: {
     type: String,
     required: true,
