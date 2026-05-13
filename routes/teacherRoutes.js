@@ -160,12 +160,13 @@ router.get('/attendance/:classId/:date', verifyToken, roleAuth(['teacher']), asy
 // ---------------------
 router.post('/upload-note', verifyToken, roleAuth(['teacher']), upload.single('noteFile'), async (req, res) => {
     try {
-      const { title, noteText } = req.body;
+      const { title, noteText, classId } = req.body;
       let fileUrl = null;
       if (req.file) fileUrl = `/uploads/${req.file.filename}`;
 
       const newNote = new TeacherNote({
         teacher: req.user.id,
+        classId,
         title,
         text: noteText || '',
         fileUrl,
@@ -186,10 +187,11 @@ router.post('/upload-note', verifyToken, roleAuth(['teacher']), upload.single('n
 // ---------------------
 router.post('/save-text-note', verifyToken, roleAuth(['teacher']), async (req, res) => {
     try {
-      const { title, note } = req.body;
+      const { title, note, classId } = req.body;
 
       const newTextNote = new TeacherNote({
         teacher: req.user.id,
+        classId,
         title,
         text: note,
         uploadedAt: new Date(),

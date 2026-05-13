@@ -7,6 +7,13 @@ const teacherNoteSchema = new mongoose.Schema({
     ref: 'Teacher', // Referencing the Teacher model
     required: true,
   },
+
+  classId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Teacher',
+    required: true,
+  },
+  
   title: {
     type: String,
     required: true,
