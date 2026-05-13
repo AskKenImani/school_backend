@@ -53,9 +53,9 @@ router.get('/notes', verifyToken, async (req, res) => {
     }
 
     const notes = await Note.find({
-      classId: student.classId
-    }).populate('subjectId', 'name')
-      .sort({ createdAt: -1 })
+      classId: student.classId._id
+    })
+    .sort({ uploadedAt: -1 })
 
     res.json({ notes })
 
