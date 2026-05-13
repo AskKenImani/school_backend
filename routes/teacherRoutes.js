@@ -175,7 +175,7 @@ router.post('/upload-note', verifyToken, roleAuth(['teacher']), upload.single('n
       await newNote.save();
       res.status(200).json({ message: 'Note uploaded successfully', note: newNote });
     } catch (error) {
-      console.error('Error uploading note:', error);
+      console.error(error.stack);
       res.status(500).json({ message: 'Failed to upload note', error });
     }
   }
