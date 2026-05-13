@@ -218,7 +218,10 @@ router.get('/notes/:teacherId', verifyToken, roleAuth(['teacher']), async (req, 
         return res.status(400).json({ message: 'Invalid teacher ID' });
       }
 
-      const notes = await TeacherNote.find({ teacher: teacherId }).sort({ uploadedAt: -1 });
+      const notes = await TeacherNote.find({ teacher: teacherId })
+      .populate('classId', 'name')
+      .populate('subject', 'name')
+      .sort({ uploadedAt: -1 });
       res.json({ notes });
     } catch (error) {
       console.error('Error fetching teacher notes:', error);
@@ -226,6 +229,80 @@ router.get('/notes/:teacherId', verifyToken, roleAuth(['teacher']), async (req, 
     }
   }
 );
+
+// ---------------------
+// Delete note
+// ---------------------
+router.delete('/notes/:id', verifyToken, roleAuth(['teacher']), async (req, res) => {
+  try {
+
+    const note = await TeacherNote.findById(req.params.id);
+
+    if (!note) {
+      return res.status(404).json({
+        message: 'Note not found'
+      });
+    }
+
+    if (String(note.teacher) !== String(req.user.id)) {
+      return res.status(403).json({
+        message: 'Unauthorized'
+      });
+    }
+
+    await TeacherNote.findByIdAndDelete(req.params.id);
+
+    res.json({
+      message: 'Note deleted successfully'
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: 'Failed to delete note'
+    });
+  }
+});
+
+// ---------------------
+// Edit note
+// ---------------------
+router.put('/notes/:id', verifyToken, roleAuth(['teacher']), async (req, res) => {
+  try {
+
+    const { title, text } = req.body;
+
+    const note = await TeacherNote.findById(req.params.id);
+
+    if (!note) {
+      return res.status(404).json({
+        message: 'Note not found'
+      });
+    }
+
+    if (String(note.teacher) !== String(req.user.id)) {
+      return res.status(403).json({
+        message: 'Unauthorized'
+      });
+    }
+
+    note.title = title || note.title;
+    note.text = text || note.text;
+
+    await note.save();
+
+    res.json({
+      message: 'Note updated successfully',
+      note
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: 'Failed to update note'
+    });
+  }
+});
 
 // ---------------------
 // Teacher timetable
