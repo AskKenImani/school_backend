@@ -267,42 +267,44 @@ router.delete('/notes/:id', verifyToken, roleAuth(['teacher']), async (req, res)
 // ---------------------
 // Edit note
 // ---------------------
-router.put('/notes/:id', verifyToken, roleAuth(['teacher']), async (req, res) => {
-  try {
+router.put('/notes/:id', verifyToken, roleAuth(['teacher']), upload.single('noteFile'), async (req, res) => {
+    try {
+      const { title, text } = req.body;
+      const note = await TeacherNote.findById(req.params.id);
 
-    const { title, text } = req.body;
+      if (!note) {
+        return res.status(404).json({
+          message: 'Note not found'
+        });
+      }
 
-    const note = await TeacherNote.findById(req.params.id);
+      if (String(note.teacher) !== String(req.user.id)) {
+        return res.status(403).json({
+          message: 'Unauthorized'
+        });
+      }
 
-    if (!note) {
-      return res.status(404).json({
-        message: 'Note not found'
+      // update title/text
+      note.title = title || note.title;
+      note.text = text || '';
+
+      // replace uploaded file if new one exists
+      if (req.file) {
+        note.fileUrl = `/uploads/${req.file.filename}`;
+      }
+
+      await note.save();
+
+      res.json({
+        message: 'Note updated successfully',
+        note
       });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Failed to update note' });
     }
-
-    if (String(note.teacher) !== String(req.user.id)) {
-      return res.status(403).json({
-        message: 'Unauthorized'
-      });
-    }
-
-    note.title = title || note.title;
-    note.text = text || note.text;
-
-    await note.save();
-
-    res.json({
-      message: 'Note updated successfully',
-      note
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      message: 'Failed to update note'
-    });
-  }
-});
+  });
 
 // ---------------------
 // Teacher timetable
