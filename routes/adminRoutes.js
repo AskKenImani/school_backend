@@ -1022,5 +1022,154 @@ router.get(
   }
 );
 
+// =====================================
+// ADMIN GET ALL APPLICANTS
+// =====================================
+
+router.get('/admin/all', verifyToken, roleAuth(['admin']), async (req, res) => {
+    try {
+      const applicants = await Applicant.find()
+        .sort({ createdAt: -1 });
+      res.json(applicants);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: 'Failed to fetch applicants'
+      });
+    }
+  }
+);
+
+// =====================================
+// ADMIN UPDATE APPLICANT
+// =====================================
+
+router.put('/admin/:id', verifyToken, roleAuth(['admin']), async (req, res) => {
+    try {
+      const {
+        admissionStatus,
+        entranceScore,
+        remarks
+      } = req.body;
+      const applicant = await Applicant.findById(
+        req.params.id
+      );
+      if (!applicant) {
+        return res.status(404).json({
+          message: 'Applicant not found'
+        });
+      }
+      if (admissionStatus !== undefined) {
+        applicant.admissionStatus =
+          admissionStatus;
+      }
+      if (entranceScore !== undefined) {
+        applicant.entranceScore =
+          entranceScore;
+      }
+      if (remarks !== undefined) {
+        applicant.remarks = remarks;
+      }
+      await applicant.save();
+      res.json({
+        message: 'Applicant updated successfully',
+        applicant
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: 'Failed to update applicant'
+      });
+    }
+  }
+);
+
+// =====================================
+// DOWNLOAD ADMISSION LETTER
+// =====================================
+
+router.get('/admission-letter', applicantAuth, async (req, res) => {
+    try {
+      const applicant = await Applicant.findById(
+        req.applicant.userId
+      );
+      if (!applicant) {
+        return res.status(404).json({
+          message: 'Applicant not found'
+        });
+      }
+      if (applicant.admissionStatus !== 'accepted') {
+        return res.status(400).json({
+          message: 'Admission not yet granted'
+        });
+      }
+      const doc = new PDFDocument({
+        margin: 50
+      });
+      res.setHeader(
+        'Content-Type',
+        'application/pdf'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=AdmissionLetter.pdf`
+      );
+      doc.pipe(res);
+      // SCHOOL NAME
+      doc
+        .fontSize(24)
+        .text('PERFECT FOUNDATION SCHOOL', {
+          align: 'center'
+        });
+      doc.moveDown();
+      doc
+        .fontSize(20)
+        .text('ADMISSION LETTER', {
+          align: 'center'
+        });
+      doc.moveDown(2);
+      doc
+        .fontSize(14)
+        .text(
+          `Dear ${applicant.surname} ${applicant.firstName},`
+        );
+      doc.moveDown();
+      doc.text(
+        `We are pleased to inform you that you have been offered provisional admission into ${applicant.applyingForClass}.`
+      );
+      doc.moveDown();
+      doc.text(
+        `Entrance Score: ${applicant.entranceScore || '-'}`
+      );
+      doc.moveDown();
+      doc.text(
+        `Remarks: ${applicant.remarks || 'Congratulations'}`
+      );
+      doc.moveDown(2);
+      doc.text(
+        'Please proceed to the school for documentation and clearance.'
+      );
+      doc.moveDown(3);
+      doc.text(
+        'Signed:',
+        {
+          align: 'right'
+        }
+      );
+      doc.text(
+        'School Management',
+        {
+          align: 'right'
+        }
+      );
+      doc.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: 'Failed to generate letter'
+      });
+    }
+  }
+);
 
 module.exports = router;
