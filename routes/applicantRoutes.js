@@ -227,6 +227,50 @@ router.get('/admin/all', verifyToken, roleAuth(['admin']), async (req, res) => {
 );
 
 // =====================================
+// ADMIN UPDATE APPLICANT
+// =====================================
+
+router.put('/admin/:id', verifyToken, roleAuth(['admin']), async (req, res) => {
+    try {
+      const {
+        admissionStatus,
+        entranceScore,
+        remarks
+      } = req.body;
+      const applicant = await Applicant.findById(
+        req.params.id
+      );
+      if (!applicant) {
+        return res.status(404).json({
+          message: 'Applicant not found'
+        });
+      }
+      if (admissionStatus !== undefined) {
+        applicant.admissionStatus =
+          admissionStatus;
+      }
+      if (entranceScore !== undefined) {
+        applicant.entranceScore =
+          entranceScore;
+      }
+      if (remarks !== undefined) {
+        applicant.remarks = remarks;
+      }
+      await applicant.save();
+      res.json({
+        message: 'Applicant updated successfully',
+        applicant
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: 'Failed to update applicant'
+      });
+    }
+  }
+);
+
+// =====================================
 // DOWNLOAD ADMISSION LETTER
 // =====================================
 
