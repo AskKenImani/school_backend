@@ -212,6 +212,20 @@ router.get('/status', applicantAuth, async (req, res) => {
   }
 );
 
+router.get('/admin/all', verifyToken, roleAuth(['admin']), async (req, res) => {
+    try {
+      const applicants = await Applicant.find()
+        .sort({ createdAt: -1 });
+      res.json(applicants);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: 'Failed to fetch applicants'
+      });
+    }
+  }
+);
+
 // =====================================
 // DOWNLOAD ADMISSION LETTER
 // =====================================
