@@ -8,6 +8,7 @@ const studentRoutes = require('./routes/studentRoutes');
 const teacherRoutes = require('./routes/teacherRoutes');
 const authRoutes = require('./routes/authRoutes');
 const sharedRoutes = require('./routes/sharedRoutes');
+const applicantRoutes = require('./routes/applicantRoutes');
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use('/api/student', studentRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/shared', sharedRoutes);
+app.use('/api/applicant', applicantRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI, {
