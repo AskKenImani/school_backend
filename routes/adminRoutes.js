@@ -18,6 +18,9 @@ const fs = require('fs');
 const path = require('path');
 const autoGenerateGridForClass = require('../utils/autoGenerateGridForClass')
 
+const Applicant = require('../models/Applicant');
+const applicantAuth = require('../middleware/applicantAuth');
+
 const router = express.Router();
 
 /* ===============================
