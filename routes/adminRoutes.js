@@ -12,6 +12,7 @@ const Attendance = require('../models/Attendance');
 const Result = require('../models/Result');
 const roleAuth = require('../middleware/roleAuth');
 const Timetable = require('../models/Timetable');
+const Achievement = require('../models/Achievement');
 
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -20,6 +21,8 @@ const autoGenerateGridForClass = require('../utils/autoGenerateGridForClass')
 
 const Applicant = require('../models/Applicant');
 const applicantAuth = require('../middleware/applicantAuth');
+
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -32,6 +35,52 @@ const requireAdmin = (req, res, next) => {
   }
   next();
 };
+
+/* ===========================
+   ACHIEVEMENTS
+=========================== */
+
+// Create achievement
+router.post('/achievements', verifyToken, requireAdmin, upload.single('image'), async (req, res) => {
+    try {
+
+      const {
+        title,
+        description,
+        animation
+      } = req.body;
+
+      const achievement =
+        await Achievement.create({
+          title,
+          description,
+          animation,
+          image:
+            `/uploads/${req.file.filename}`
+        });
+      res.status(201).json( achievement );
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Failed to create achievement' });
+    }
+  }
+);
+
+// Get all achievements
+router.get('/achievements', verifyToken, requireAdmin, async (req, res) => {
+    const achievements =
+      await Achievement.find()
+      .sort({ createdAt: -1 });
+
+    res.json(achievements); }
+);
+
+// Delete
+router.delete('/achievements/:id', verifyToken, requireAdmin, async (req, res) => {
+    await Achievement.findByIdAndDelete( req.params.id );
+    res.json({ message: 'Achievement deleted'});
+  }
+);
 
 /* ===============================
    DASHBOARD
