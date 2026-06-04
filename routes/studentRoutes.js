@@ -193,7 +193,7 @@ router.get('/results/:studentId', verifyToken, async (req, res) => {
       studentId: req.params.studentId,
       ...(term && { term }),
       ...(session && { session })
-    });
+    }).populate('subject', 'name');
 
     if (!results || results.length === 0) {
       return res.json({
@@ -211,9 +211,9 @@ router.get('/results/:studentId', verifyToken, async (req, res) => {
     const grades = {};
 
     results.forEach((r) => {
-      totalScore += r.score;
+      totalScore += r.total;
       maxScore += 100; // Assuming each subject is out of 100
-      grades[r.subject] = { score: r.score, grade: r.grade };
+      grades[r.subject] = { score: r.total, grade: r.grade, remark: r.gradeRemark };
     });
 
     const average = ((totalScore / maxScore) * 100).toFixed(2);

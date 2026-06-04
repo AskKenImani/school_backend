@@ -574,24 +574,38 @@ router.post('/results', verifyToken, roleAuth(['teacher']), async (req, res) => 
 })
 
 router.get('/results/:classId', verifyToken, roleAuth(['teacher']), async(req,res)=>{
-  try{
+  try {
 
-  const results = await (await Result.find({})).toSorted({createdAt:-1})
-  .populate('studentId','name')
-  .populate('subject','name')
-  .where('studentId')
-  .in(
-  await Student.find({classId:req.params.classId})
-  .select('_id')
-  )
+    const students = await Student.find({
+      classId: req.params.classId
+    }).select('_id');
 
-  res.json(results)
+    const studentIds = students.map(
+      s => s._id
+    );
 
-  }catch(err){
+    const results = await Result.find({
+      studentId: {
+        $in: studentIds
+      }
+    })
+    .populate('studentId','name')
+    .populate('subject','name');
 
-  res.status(500).json({
-  message:'Failed to load results'
-  })
+    res.json(results);
+
+  } catch(err){
+
+    console.error(
+      "LOAD RESULTS ERROR:",
+      err
+    );
+
+    res.status(500).json({
+      message:'Failed to load results',
+      error: err.message
+    });
+
   }
 });
 
