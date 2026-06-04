@@ -207,16 +207,16 @@ router.get('/results/:studentId', verifyToken, async (req, res) => {
 
     // Calculate total score, max score, average
     let totalScore = 0;
-    let maxScore = 0;
-    const grades = {};
+    let maxScore = results.length * 100;
 
-    results.forEach((r) => {
+    results.forEach((r)=>{
       totalScore += r.total;
-      maxScore += 100; // Assuming each subject is out of 100
-      grades[r.subject] = { score: r.total, grade: r.grade, remark: r.gradeRemark };
     });
 
-    const average = ((totalScore / maxScore) * 100).toFixed(2);
+    const average =
+    maxScore > 0
+    ? ((totalScore / maxScore) * 100).toFixed(2)
+    : 0;
 
     // Fetch conduct and remarks
     const conduct = await Conduct.findOne({ studentId: req.params.studentId });
@@ -224,14 +224,16 @@ router.get('/results/:studentId', verifyToken, async (req, res) => {
     const principalRemarks = ''; // Optional: extend later
 
     res.json({
+
+      term: results[0]?.term || '',
+      session: results[0]?.session || '',
       totalScore,
       maxScore,
       average,
-      grades,
+      scores: results,
       conduct,
       teacherRemarks,
-      principalRemarks,
-      scores: results
+      principalRemarks
     });
   } catch (error) {
     console.error('Error fetching student results:', error);
