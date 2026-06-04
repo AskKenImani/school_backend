@@ -799,11 +799,7 @@ router.get('/results', verifyToken, requireAdmin, async (req, res) => {
 });
 
 // Create result
-router.post(
-  '/results',
-  verifyToken,
-  roleAuth(['admin', 'teacher']),
-  async (req, res) => {
+router.post('/results', verifyToken, roleAuth(['admin', 'teacher']), async (req, res) => {
     try {
       const { studentId, subject, score, term, session, teacherComment } =
         req.body;
@@ -830,11 +826,7 @@ router.post(
 );
 
 // Update result
-router.put(
-  '/results/:id',
-  verifyToken,
-  roleAuth(['admin', 'teacher']),
-  async (req, res) => {
+router.put('/results/:id', verifyToken, roleAuth(['admin', 'teacher']), async (req, res) => {
     try {
       const updated = await Result.findOneAndUpdate(
         { _id: req.params.id },
@@ -899,11 +891,31 @@ router.post('/students/promote', verifyToken, requireAdmin, async (req, res) => 
   }
 });
 
+router.get('/scores/:studentId', verifyToken, roleAuth(['admin']), async(req,res)=>{
+
+  try{
+
+  const results =
+    await Result.find({
+    studentId:req.params.studentId
+    })
+    .populate('subject','name')
+    .populate('studentId','name')
+
+  res.json(results)
+
+  }catch(err){
+
+  console.log(err)
+
+  res.status(500).json({
+  message:'Failed to fetch scores' })
+
+  }
+});
+
 // 🔥 TERM SUMMARY (Total + Average)
-router.get(
-  '/results/student/:studentId/summary',
-  verifyToken,
-  async (req, res) => {
+router.get('/results/student/:studentId/summary', verifyToken, async (req, res) => {
     try {
       const { term, session } = req.query;
 

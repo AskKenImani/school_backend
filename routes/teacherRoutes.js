@@ -446,59 +446,154 @@ router.post('/results', verifyToken, roleAuth(['teacher']), async (req, res) => 
     const results = req.body
 
     if (!Array.isArray(results)) {
-      return res.status(400).json({ message: 'Invalid payload' })
+      return res.status(400).json({
+        message:'Invalid payload'
+      })
     }
 
     const saved = []
 
     for (const r of results) {
 
-      const student = await Student.findById(r.studentId)
+      const student =
+        await Student.findById(r.studentId)
 
       if (!student) continue
 
-      // verify teacher teaches this subject in this class
-      const classDoc = await Class.findById(student.classId)
 
-      const mapping = classDoc.subjectMappings.find(m =>
-        String(m.teacherId) === String(teacherId) &&
-        String(m.subjectId) === String(r.subject)
-      )
+      const classDoc =
+        await Class.findById(student.classId)
+
+
+      const mapping =
+        classDoc.subjectMappings.find(m =>
+          String(m.teacherId) === String(teacherId) &&
+          String(m.subjectId) === String(r.subject)
+        )
+
 
       if (!mapping) {
         return res.status(403).json({
-          message: 'You cannot score this subject'
+          message:'You cannot score this subject'
         })
       }
 
-      const result = await Result.findOneAndUpdate(
-        {
-          studentId: r.studentId,
-          subject: r.subject,
-          term: r.term,
-          session: r.session
-        },
-        {
-          teacherId,
-          score: r.score
-        },
-        { new: true, upsert: true }
-      )
+
+      const total =
+        Number(r.weekly || 0) +
+        Number(r.test1 || 0) +
+        Number(r.test2 || 0) +
+        Number(r.exam || 0)
+
+      let grade = ''
+      let gradeRemark = ''
+
+      if(total >=75){
+        grade='A'
+        gradeRemark='Excellent'
+      }
+      else if(total >=65){
+        grade='B'
+        gradeRemark='Very Good'
+      }
+      else if(total >=50){
+        grade='C'
+        gradeRemark='Good'
+      }
+      else if(total >=40){
+        grade='D'
+        gradeRemark='Fair'
+      }
+      else{
+        grade='F'
+        gradeRemark='Fail'
+      }
+
+      const result =
+      await Result.findOneAndUpdate(
+
+      {
+        studentId:r.studentId,
+        subject:r.subject,
+        term:r.term,
+        session:r.session
+      },
+
+      {
+
+        studentId:r.studentId,
+        subject:r.subject,
+
+        teacherId,
+
+        weekly:Number(r.weekly || 0),
+        test1:Number(r.test1 || 0),
+        test2:Number(r.test2 || 0),
+        exam:Number(r.exam || 0),
+
+        total,
+
+        grade,
+
+        gradeRemark,
+
+        teacherComment:
+        r.teacherComment || '',
+
+        term:r.term,
+        session:r.session
+
+      },
+
+      {
+        new:true,
+        upsert:true,
+        runValidators:true
+      })
 
       saved.push(result)
 
     }
 
+
     res.json({
-      message: 'Scores saved successfully',
-      results: saved
+      message:'Scores saved successfully',
+      results:saved
     })
 
-  } catch (err) {
+
+  } catch(err){
+
     console.error(err)
-    res.status(500).json({ message: 'Failed to save scores' })
+
+    res.status(500).json({
+      message:'Failed to save scores'
+    })
+
   }
 })
+
+router.get('/results/:classId', verifyToken, roleAuth(['teacher']), async(req,res)=>{
+  try{
+
+  const results = await (await Result.find({})).toSorted({createdAt:-1})
+  .populate('studentId','name')
+  .populate('subject','name')
+  .where('studentId')
+  .in(
+  await Student.find({classId:req.params.classId})
+  .select('_id')
+  )
+
+  res.json(results)
+
+  }catch(err){
+
+  res.status(500).json({
+  message:'Failed to load results'
+  })
+  }
+});
 
 // ---------------------
 // Fetch class students for a teacher

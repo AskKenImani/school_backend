@@ -95,16 +95,23 @@ resultSchema.pre('save',function(next){
   next()
 });
 
-resultSchema.pre('findOneAndUpdate', function (next) {
-  const update = this.getUpdate();
+resultSchema.pre('findOneAndUpdate', function(next){
+  const update=this.getUpdate();
 
-  if (update.total !== undefined) {
-    const { grade, remark } = calculateGrade(update.total);
-    update.grade = grade;
-    update.gradeRemark = remark;
-  }
+  const total =
+  (update.weekly || 0) +
+  (update.test1 || 0) +
+  (update.test2 || 0) +
+  (update.exam || 0);
+
+  update.total = total;
+
+  const {grade,remark}=calculateGrade(total);
+
+  update.grade = grade;
+  update.gradeRemark = remark;
 
   next();
-});
 
+});
 module.exports = mongoose.model('Result', resultSchema);
